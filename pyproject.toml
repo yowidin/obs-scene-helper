@@ -1,0 +1,62 @@
+[tool.poetry]
+name = "obs-scene-helper"
+version = "0.1.0"
+description = "OBS automatic scene and profile selection helper"
+readme = "README.md"
+authors = [
+    "Dennis Sitelew <yowidin@gmail.com>",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+]
+packages = [{include = "obs_scene_helper", from = "src"}]
+
+[tool.poetry.scripts]
+obs-controller = "obs_scene_helper.__main__:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+##########################################
+# Common dependencies
+##########################################
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.14"
+pyside6 = "^6.8.0.2"
+toml = "^0.10.2"
+watchdog = "^6.0.0"
+obsws-python = "^1.7.0"
+
+##########################################
+# MacOS-specific dependencies
+##########################################
+
+[tool.poetry.dependencies.pyobjc]
+version = "^10.3.1"
+platform = "darwin"
+
+##########################################
+# Windows-specific dependencies
+##########################################
+
+[tool.poetry.dependencies.pywin32]
+version = "^308"
+platform = "win32"
+
+##########################################
+# Testing
+##########################################
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.3"
+pytest-cov = "^6.0.0"
+coverage = "^7.6.7"
+pytest-mock = "^3.14.0"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --cov=obs_scene_helper"
+pythonpath = ["src"]
