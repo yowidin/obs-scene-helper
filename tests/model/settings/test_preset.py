@@ -71,10 +71,11 @@ def test_preset_displays_unique_enough():
 
 
 def test_preset_list_add(mocker: MockerFixture):
-    p1 = Preset('1', 'n', ['d1', 'd2'], 'p', 'sc')
-    p2 = Preset('2', 'n', ['d2', 'd1', 'd3'], 'p', 'sc')
-    non_unique = Preset('3', 'n', ['d2', 'd1'], 'p', 'sc')
-    unique_different_set = Preset('4', 'n', ['d3', 'd1'], 'p', 'sc')
+    p1 = Preset('1', 'n1', ['d1', 'd2'], 'p', 'sc')
+    p2 = Preset('2', 'n2', ['d2', 'd1', 'd3'], 'p', 'sc')
+    non_unique_config = Preset('3', 'n3', ['d2', 'd1'], 'p', 'sc')
+    non_unique_name = Preset('4', 'n2', ['d7', 'd1'], 'p', 'sc')
+    unique_different_set = Preset('5', 'n4', ['d3', 'd1'], 'p', 'sc')
 
     on_change_callback = mocker.Mock()
     preset_list = PresetList([p1, p2], on_change_callback)
@@ -84,7 +85,10 @@ def test_preset_list_add(mocker: MockerFixture):
         preset_list.add(p1)
 
     with pytest.raises(NonUniquePreset):
-        preset_list.add(non_unique)
+        preset_list.add(non_unique_config)
+
+    with pytest.raises(NonUniqueName):
+        preset_list.add(non_unique_name)
 
     preset_list.add(unique_different_set)
     on_change_callback.assert_called_once()
@@ -149,6 +153,36 @@ def test_preset_list_update_changed(mocker: MockerFixture):
     on_change_callback.assert_not_called()
 
 
+def test_preset_list_update_non_unique_name(mocker: MockerFixture):
+    p1 = Preset('1', 'n1', ['d1', 'd2'], 'p', 'sc')
+    p2 = Preset('2', 'n2', ['d2', 'd1', 'd3'], 'p', 'sc')
+    non_unique = Preset('3', 'n2', ['d4'], 'p', 'sc')
+
+    on_change_callback = mocker.Mock()
+    preset_list = PresetList([p1, p2], on_change_callback)
+    assert preset_list.presets == [p1, p2]
+
+    with pytest.raises(NonUniqueName):
+        preset_list.update(p1, non_unique)
+
+    on_change_callback.assert_not_called()
+
+
+def test_preset_list_update_non_unique_config(mocker: MockerFixture):
+    p1 = Preset('1', 'n1', ['d1', 'd2'], 'p', 'sc')
+    p2 = Preset('2', 'n2', ['d2', 'd1', 'd3'], 'p', 'sc')
+    non_unique = Preset('3', 'n3', ['d2', 'd1', 'd3'], 'p', 'sc')
+
+    on_change_callback = mocker.Mock()
+    preset_list = PresetList([p1, p2], on_change_callback)
+    assert preset_list.presets == [p1, p2]
+
+    with pytest.raises(NonUniquePreset):
+        preset_list.update(p1, non_unique)
+
+    on_change_callback.assert_not_called()
+
+
 def test_preset_list_to_and_from_dict_conversion():
     p1 = Preset('1', 'n', ['d1', 'd2'], 'p', 'sc')
     p1_dict = p1.to_dict()
@@ -165,3 +199,8 @@ def test_preset_list_to_and_from_dict_conversion():
 
     decoded = PresetList.from_dict(decoded_json, None)
     assert original.presets == decoded.presets
+
+
+def test_str_convertible():
+    p = Preset('1', 'n', ['d1', 'd2'], 'p', 'sc')
+    assert p.name == str(p)

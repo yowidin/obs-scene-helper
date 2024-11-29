@@ -44,10 +44,15 @@ class AllDisplays:
         return self != other
 
     def update(self, other: Union['AllDisplays', List[str]]):
-        if not self.will_change_from(other):
+        # The new display list might be smaller than the old one, but can still contain some new entries.
+        # So we make use an intersection of both lists as the new list.
+
+        other_displays = set(AllDisplays._display_list_from_other(other))
+        our_displays = set(self.all_displays)
+        new_display_list = list(our_displays | other_displays)
+
+        if not self.will_change_from(new_display_list):
             return
 
-        other_displays = AllDisplays._display_list_from_other(other)
-
-        self.all_displays = other_displays
+        self.all_displays = new_display_list
         self._notify_changed()

@@ -25,7 +25,7 @@ def test_update(mocker: MockerFixture):
     original = AllDisplays(original_list, on_change_callback)
     different_order = AllDisplays(['2', '1'], None)
     different_values = AllDisplays(['1', '3'], None)
-    different_count = AllDisplays(['1', '2', '3'], None)
+    different_count = AllDisplays(['1', '2', '3', '4'], None)
 
     assert not original.will_change_from(different_order)
     assert original.will_change_from(different_values)
@@ -57,3 +57,8 @@ def test_update(mocker: MockerFixture):
 
     check_one_change(different_values)
     check_one_change(different_count)
+
+    # The list should never shrink
+    original.update(['1'])
+    on_change_callback.assert_not_called()
+    assert len(original.all_displays) == 4

@@ -62,8 +62,7 @@ class OBSSettingsDialog(QDialog):
         action_layout.addWidget(self.test_conn_btn)
 
         # Create button box
-        # noinspection PyUnresolvedReferences
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
 

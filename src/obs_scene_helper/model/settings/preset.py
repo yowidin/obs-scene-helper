@@ -117,6 +117,12 @@ class NonUniquePreset(RuntimeError):
         self.new = new
 
 
+class NonUniqueName(RuntimeError):
+    def __init__(self, name: str):
+        super().__init__(f'Preset name should be unique: "{name}"')
+        self.name = name
+
+
 class PresetList:
     def __init__(self, presets: List[Preset], on_changed: Optional[Callable[[], None]]):
         super().__init__()
@@ -137,6 +143,9 @@ class PresetList:
             raise NonUniqueUUID(self._by_uuid[preset.uuid])
 
         for existing in self._presets:
+            if existing.name == preset.name:
+                raise NonUniqueName(existing.name)
+
             if not existing.displays_unique_enough(preset):
                 raise NonUniquePreset(existing, preset)
 
@@ -167,6 +176,17 @@ class PresetList:
     def update(self, existing: Union[Preset, str], updated: Preset):
         """ Update the existing preset with the new values (all values except UUID will be copied over) """
         existing = self._find_preset(existing)
+
+        for in_current_list in self._presets:
+            if in_current_list.uuid == existing.uuid:
+                continue
+
+            if in_current_list.name == updated.name:
+                raise NonUniqueName(existing.name)
+
+            if not in_current_list.displays_unique_enough(updated):
+                raise NonUniquePreset(in_current_list, updated)
+
         if existing.update(updated):
             self._notify_changed()
 
