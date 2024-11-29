@@ -172,8 +172,8 @@ class EditableListWidget(QWidget):
 
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.add_button)
-        button_layout.addWidget(self.remove_button)
         button_layout.addWidget(self.edit_button)
+        button_layout.addWidget(self.remove_button)
 
         main_layout = QVBoxLayout()
         main_layout.addWidget(self.view)
