@@ -9,6 +9,8 @@ from obs_scene_helper.controller.obs.connection import ConnectionState, Recordin
 
 class SystemTraySignals(QObject):
     quit_requested = Signal()
+    presets_list_requested = Signal()
+    obs_settings_requested = Signal()
 
 
 class TrayIcon(QSystemTrayIcon):
@@ -29,7 +31,10 @@ class TrayIcon(QSystemTrayIcon):
 
         # Create context menu
         self.menu = QMenu()
-        self.menu.addAction("Exit", self.quit_app)
+        self.menu.addAction("Presets", lambda: self.signals.presets_list_requested.emit())
+        self.menu.addAction("OBS Settings", lambda: self.signals.obs_settings_requested.emit())
+        self.menu.addSeparator()
+        self.menu.addAction("Quit", lambda: self.signals.quit_requested.emit())
         self.setContextMenu(self.menu)
 
         # Initial icon setup
@@ -131,6 +136,3 @@ class TrayIcon(QSystemTrayIcon):
         if self.extra_message is not None and len(self.extra_message) > 0:
             tooltip += f"\nMessage: {self.extra_message}"
         self.setToolTip(tooltip)
-
-    def quit_app(self):
-        self.signals.quit_requested.emit()

@@ -1,14 +1,8 @@
-import sys
-from PySide6.QtWidgets import QApplication
-
-from obs_scene_helper.view.main_window import MainWindow
+from obs_scene_helper.app import OBSSceneHelperApp
 
 
 def main():
-    app = QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec())
+    OBSSceneHelperApp.run()
 
 
 if __name__ == "__main__":
