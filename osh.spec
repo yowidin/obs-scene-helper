@@ -26,6 +26,7 @@ exe = EXE(
     a.datas,
     [],
     name='osh',
+    icon="res/app.ico",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -42,7 +43,7 @@ exe = EXE(
 app = BUNDLE(
     exe,
     name='osh.app',
-    icon=None,
+    icon="res/app.icns",
     bundle_identifier=None,
 
     # Don't appear in the dock
