@@ -62,12 +62,10 @@ class OBSSceneHelperApp:
         if self.presets is None:
             self.presets = self._make_preset_list_window()
             self.presets.show()
-        elif self.presets.isVisible():
-            self.presets.hide()
-        else:
-            self.presets.show()
             self.presets.raise_()
             self.presets.activateWindow()
+        else:
+            self.presets.close()
 
     def _obs_settings_requested(self):
         dialog = OBSSettingsDialog(self.settings)

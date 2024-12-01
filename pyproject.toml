@@ -55,6 +55,7 @@ pytest = "^8.3.3"
 pytest-cov = "^6.0.0"
 coverage = "^7.6.7"
 pytest-mock = "^3.14.0"
+pyinstaller = "^6.11.1"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
