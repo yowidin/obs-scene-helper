@@ -2,10 +2,12 @@ from enum import Enum
 from typing import Optional, List
 
 import logging
+import sys
 
 from PySide6.QtCore import QObject, QThread, Signal
 
 import obsws_python as obs
+from obsws_python.error import OBSSDKRequestError
 
 from obs_scene_helper.controller.obs.event_client import EventClient
 from obs_scene_helper.controller.obs.output_state import OutputState
@@ -265,3 +267,46 @@ class Connection(QObject):
             self._fetch_scene_collection_list()
         except Exception as e:
             self.connection_state_changed.emit(ConnectionState.Error, str(e))
+
+    ################################################################################
+    # API wrappers
+    ################################################################################
+    def restart_macos_captures(self):
+        # On macOS the "screen capture" inputs get "broken" after locking the screen, but luckily OBS provides a button
+        # for restarting the capture.
+        # In this function we are iterating over all inputs, where this button is present and ask OBS to press it.
+        if sys.platform != 'darwin':
+            return
+
+        resp = self._ws.get_input_list('screen_capture')
+        for capture in resp.inputs:
+            try:
+                self._ws.press_input_properties_button(capture['inputName'], "reactivate_capture")
+            except OBSSDKRequestError:
+                pass
+
+    def pause_recording(self):
+        try:
+            status = self._ws.get_record_status()
+            if not status.output_active:
+                return
+
+            if status.output_paused:
+                return
+
+            self._ws.pause_record()
+        except OBSSDKRequestError:
+            pass
+
+    def resume_recording(self):
+        try:
+            status = self._ws.get_record_status()
+            if not status.output_active:
+                return
+
+            if not status.output_paused:
+                return
+
+            self._ws.resume_record()
+        except OBSSDKRequestError:
+            pass

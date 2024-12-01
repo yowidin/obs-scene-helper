@@ -7,7 +7,10 @@ from PySide6.QtWidgets import QApplication
 from obs_scene_helper.controller.settings.settings import Settings
 from obs_scene_helper.controller.obs.connection import Connection
 from obs_scene_helper.controller.obs.connection_doctor import ConnectionDoctor
+
 from obs_scene_helper.controller.system.display_list import DisplayList
+
+from obs_scene_helper.controller.actions.pause_on_screen_lock import PauseOnScreenLock
 
 from obs_scene_helper.view.tray_icon import TrayIcon
 from obs_scene_helper.view.settings.obs import OBSSettingsDialog
@@ -30,6 +33,8 @@ class OBSSceneHelperApp:
         self.tray_icon.signals.obs_settings_requested.connect(self._obs_settings_requested)
 
         self._setup_platform_specifics()
+
+        self.pause_action = PauseOnScreenLock(self.obs_connection)
 
         self.presets = None  # type: Optional[PresetList]
 
