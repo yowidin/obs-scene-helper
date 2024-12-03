@@ -21,7 +21,6 @@ class PauseOnScreenLock(QObject):
         super().__init__(*args, **kwargs)
 
         self.state = PauseOnScreenLock.State.Idle
-        self.recording_state = None
 
         self.obs_connection = obs_connection
         self.obs_connection.recording_state_changed.connect(self._handle_record_state_change)
@@ -31,12 +30,10 @@ class PauseOnScreenLock(QObject):
         self.screen_lock.screen_unlocked.connect(self._handle_screen_unlocked)
 
     def _handle_record_state_change(self, new_state: RecordingState):
-        self.recording_state = new_state
-        if self.state == PauseOnScreenLock.State.WaitingForPauseEvent and self.recording_state == RecordingState.Paused:
+        if self.state == PauseOnScreenLock.State.WaitingForPauseEvent and new_state == RecordingState.Paused:
             return self._pause_done()
 
-        if self.state == PauseOnScreenLock.State.WaitingForResumeEvent \
-           and self.recording_state == RecordingState.Active:
+        if self.state == PauseOnScreenLock.State.WaitingForResumeEvent and new_state == RecordingState.Active:
             return self._resume_done()
 
     def _pause_done(self):
@@ -48,7 +45,7 @@ class PauseOnScreenLock(QObject):
         self.state = PauseOnScreenLock.State.Idle
 
     def _handle_screen_locked(self):
-        if self.recording_state == RecordingState.Paused:
+        if self.obs_connection.recording_state == RecordingState.Paused:
             # Already paused
             return
 
@@ -56,7 +53,7 @@ class PauseOnScreenLock(QObject):
         self.obs_connection.pause_recording()
 
     def _handle_screen_unlocked(self):
-        if self.recording_state == RecordingState.Active:
+        if self.obs_connection.recording_state == RecordingState.Active:
             # Already resumed
             return
 

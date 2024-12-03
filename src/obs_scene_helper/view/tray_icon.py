@@ -14,16 +14,15 @@ class SystemTraySignals(QObject):
 
 
 class TrayIcon(QSystemTrayIcon):
-    def __init__(self, connection: Connection, *args, **kwargs):
+    def __init__(self, obs_connection: Connection, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.signals = SystemTraySignals()
 
-        self.connection = connection
+        self.obs_connection = obs_connection
 
         self.animation_frame = 0
-        self.current_state = ConnectionState.Disconnected  # type: ConnectionState
-        self.recording_state = RecordingState.Stopped  # type: RecordingState
         self.extra_message = None
+        self.last_error = None
 
         # Initialize animation timer
         self.animation_timer = QTimer(self)
@@ -42,19 +41,30 @@ class TrayIcon(QSystemTrayIcon):
         self.show()
 
         # Connect signals
-        self.connection.connection_state_changed.connect(self._connection_state_changed)
-        self.connection.recording_state_changed.connect(self._recording_state_changed)
+        self.obs_connection.connection_state_changed.connect(self._connection_state_changed)
+        self.obs_connection.recording_state_changed.connect(self._recording_state_changed)
+        self.obs_connection.on_error.connect(self._on_error)
+
+    @property
+    def _connection_state(self) -> ConnectionState:
+        return self.obs_connection.connection_state
+
+    @property
+    def _recording_state(self) -> Optional[RecordingState]:
+        return self.obs_connection.recording_state
 
     def _connection_state_changed(self, state: ConnectionState, message: Optional[str]):
-        self.current_state = state
         self.extra_message = message
-        if state != ConnectionState.Connected:
-            self.recording_state = None
-
+        if state == ConnectionState.Connected:
+            self.last_error = None
         self._update_state()
 
-    def _recording_state_changed(self, state: RecordingState):
-        self.recording_state = state
+    def _recording_state_changed(self, _: RecordingState):
+        self.last_error = None
+        self._update_state()
+
+    def _on_error(self, error: str):
+        self.last_error = error
         self._update_state()
 
     def _create_icon(self):
@@ -68,7 +78,7 @@ class TrayIcon(QSystemTrayIcon):
 
         # Draw the base circle
         painter.setPen(Qt.PenStyle.NoPen)
-        if self.current_state == ConnectionState.Connected:
+        if self._connection_state == ConnectionState.Connected:
             painter.setBrush(QColor(0, 0, 0))  # Black for connected
         else:
             painter.setBrush(QColor(128, 128, 128))  # Gray for disconnected
@@ -77,11 +87,11 @@ class TrayIcon(QSystemTrayIcon):
         painter.drawEllipse(outer_rect)
 
         # Draw recording status indicator
-        if self.current_state == ConnectionState.Connected:
+        if self._connection_state == ConnectionState.Connected:
             painter.setBrush(QColorConstants.White)
             inner_rect = QRect(16, 16, 32, 32)
 
-            if self.recording_state in [RecordingState.Starting, RecordingState.Stopping]:
+            if self._recording_state in [RecordingState.Starting, RecordingState.Stopping]:
                 # Draw animated loading segments
                 painter.save()
                 painter.translate(32, 32)
@@ -91,16 +101,16 @@ class TrayIcon(QSystemTrayIcon):
                     painter.drawRect(-2, -16, 4, 8)
                 painter.restore()
 
-            elif self.recording_state == RecordingState.Active:
+            elif self._recording_state == RecordingState.Active:
                 # Draw recording circle
                 painter.drawEllipse(inner_rect)
 
-            elif self.recording_state == RecordingState.Paused:
+            elif self._recording_state == RecordingState.Paused:
                 # Draw pause bars
                 painter.drawRect(24, 16, 6, 32)
                 painter.drawRect(34, 16, 6, 32)
 
-            elif self.recording_state == RecordingState.Stopped:
+            elif self._recording_state == RecordingState.Stopped:
                 # Draw stop square
                 painter.drawRect(inner_rect)
 
@@ -115,9 +125,9 @@ class TrayIcon(QSystemTrayIcon):
         self.setIcon(self._create_icon())
 
     def _update_state(self):
-        if self.current_state == ConnectionState.Connected and self.recording_state is not None:
+        if self._connection_state == ConnectionState.Connected and self._recording_state is not None:
             # Handle animations
-            if self.recording_state in [RecordingState.Starting, RecordingState.Stopping]:
+            if self._recording_state in [RecordingState.Starting, RecordingState.Stopping]:
                 self.animation_timer.start(int(1000 / 30))  # 30 FPS
             else:
                 self.animation_timer.stop()
@@ -130,9 +140,11 @@ class TrayIcon(QSystemTrayIcon):
 
         # Update tooltip
         tooltip = f"OBS Scene Helper\n" \
-                  f"Status: {self.current_state.name}"
-        if self.recording_state is not None:
-            tooltip += f", recording is {self.recording_state.value}"
+                  f"Status: {self._connection_state.name}"
+        if self._recording_state is not None:
+            tooltip += f", recording is {self._recording_state.value}"
         if self.extra_message is not None and len(self.extra_message) > 0:
             tooltip += f"\nMessage: {self.extra_message}"
+        if self.last_error is not None and len(self.last_error) > 0:
+            tooltip += f"\n\nError: {self.last_error}"
         self.setToolTip(tooltip)
