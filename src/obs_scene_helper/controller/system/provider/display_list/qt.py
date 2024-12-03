@@ -21,7 +21,7 @@ class QtProvider(QObject):
         return self._displays
 
     def _update_display_list(self):
-        new_displays = [x.name() for x in self._app.screens()]
+        new_displays = [x.name() for x in self._app.screens() if len(x.name()) != 0]
         if sorted(new_displays) != sorted(self._displays):
             self._displays = new_displays
             self.changed.emit(self._displays)

@@ -22,16 +22,18 @@ class AllDisplays:
 
     @staticmethod
     def _comparable_display_list(displays: List[str]) -> List[str]:
-        return [x.lower() for x in sorted(displays)]
+        return [x.lower() for x in sorted(displays) if len(x) != 0]
 
     @staticmethod
     def _display_list_from_other(other: Union['AllDisplays', List[str]]):
         if isinstance(other, AllDisplays):
-            return other.all_displays
+            res = other.all_displays
         elif isinstance(other, list):
-            return other
+            res = other
         else:
             raise TypeError('Display list expected')
+
+        return [x for x in res if len(x) != 0]
 
     def __eq__(self, other: Union['AllDisplays', List[str]]):
         other_displays = AllDisplays._display_list_from_other(other)

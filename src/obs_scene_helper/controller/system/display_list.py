@@ -18,6 +18,11 @@ class DisplayList(QObject):
             self._provider = QtProvider(*args, **kwargs)
             self._provider.changed.connect(self._handle_display_list_change)
 
+        if self._provider is not None:
+            # Simulate a display list changed event.
+            # This way the clients will start with a valid list of displays
+            self._handle_display_list_change(self._provider.displays)
+
     @property
     def displays(self):
         return self._provider.displays

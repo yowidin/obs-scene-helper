@@ -24,14 +24,17 @@ def test_update(mocker: MockerFixture):
 
     original = AllDisplays(original_list, on_change_callback)
     different_order = AllDisplays(['2', '1'], None)
+    with_empty_name = AllDisplays(['2', '1', ''], None)
     different_values = AllDisplays(['1', '3'], None)
     different_count = AllDisplays(['1', '2', '3', '4'], None)
 
     assert not original.will_change_from(different_order)
+    assert not original.will_change_from(with_empty_name)
     assert original.will_change_from(different_values)
     assert original.will_change_from(different_count)
 
     assert not original.will_change_from(different_order.all_displays)
+    assert not original.will_change_from(with_empty_name.all_displays)
     assert original.will_change_from(different_values.all_displays)
     assert original.will_change_from(different_count.all_displays)
 
@@ -44,6 +47,9 @@ def test_update(mocker: MockerFixture):
         original.update(10)
 
     original.update(different_order)
+    on_change_callback.assert_not_called()
+
+    original.update(with_empty_name)
     on_change_callback.assert_not_called()
 
     def check_one_change(changed_one: AllDisplays):
