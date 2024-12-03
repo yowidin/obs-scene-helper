@@ -211,3 +211,10 @@ class PresetList:
             presets.append(Preset.from_dict(raw_preset))
 
         return PresetList(presets, on_changed)
+
+    def find_matching(self, displays: List[str]) -> Optional[Preset]:
+        for preset in self._presets:
+            if not preset.displays_unique_enough(displays):
+                return preset
+
+        return None

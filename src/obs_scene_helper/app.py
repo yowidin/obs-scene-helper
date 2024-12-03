@@ -11,6 +11,7 @@ from obs_scene_helper.controller.obs.connection_doctor import ConnectionDoctor
 from obs_scene_helper.controller.system.display_list import DisplayList
 
 from obs_scene_helper.controller.actions.pause_on_screen_lock import PauseOnScreenLock
+from obs_scene_helper.controller.actions.switch_profile_and_scene_collection import SwitchProfileAndSceneCollection
 
 from obs_scene_helper.view.tray_icon import TrayIcon
 from obs_scene_helper.view.settings.obs import OBSSettingsDialog
@@ -23,6 +24,7 @@ class OBSSceneHelperApp:
         self.app.setQuitOnLastWindowClosed(False)
 
         self.display_list = DisplayList()
+
         self.settings = Settings(self.display_list)
         self.obs_connection = Connection(self.settings)
         self.connection_doctor = ConnectionDoctor(self.obs_connection, self.settings)
@@ -35,6 +37,12 @@ class OBSSceneHelperApp:
         self._setup_platform_specifics()
 
         self.pause_action = PauseOnScreenLock(self.obs_connection)
+        self.display_switch_action = SwitchProfileAndSceneCollection(self.obs_connection, self.display_list,
+                                                                     self.settings)
+
+        # Launch the connection after all the components are initialized, ensuring that all signals are received
+        # by all the components
+        self.obs_connection.launch()
 
         self.presets = None  # type: Optional[PresetList]
 
@@ -46,11 +54,15 @@ class OBSSceneHelperApp:
     def _handle_presets_window_destroyed(self):
         self.presets = None
 
-    def _setup_platform_specifics(self):
+    # noinspection PyPackageRequirements,PyUnresolvedReferences
+    @staticmethod
+    def _setup_platform_specifics():
         system = platform.system().lower()
 
         if system == "darwin":
-            self.app.setProperty("HIDING_DOCK_ICON", 1)
+            import AppKit
+            info = AppKit.NSBundle.mainBundle().infoDictionary()
+            info["LSBackgroundOnly"] = "1"
 
         elif system == "linux":
             pass
