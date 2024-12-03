@@ -54,7 +54,7 @@ class QtLogHandler(QObject):
 class Connection(QObject):
     NO_LOGS = False
 
-    connection_state_changed = Signal(ConnectionState, str)
+    connection_state_changed = Signal(ConnectionState, str)  # Note: str is optional
     recording_state_changed = Signal(RecordingState)
 
     profile_list_changed = Signal()
@@ -62,6 +62,8 @@ class Connection(QObject):
 
     scene_collection_list_changed = Signal()
     active_scene_collection_changed = Signal(str)
+
+    on_error = Signal(str)
 
     def __init__(self, settings: Settings, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -78,7 +80,6 @@ class Connection(QObject):
         self.log_handler = QtLogHandler()
 
         self._thread.started.connect(self._started)
-        self._thread.start()
 
         self._ws = None  # type: Optional[obs.ReqClient]
         self._events = None  # type: Optional[EventClient]
@@ -90,6 +91,12 @@ class Connection(QObject):
 
         self.scene_collections = []  # type: List[str]
         self.active_scene_collection = None  # type: Optional[str]
+
+        self.recording_state = None  # type: Optional[RecordingState]
+        self.connection_state = ConnectionState.Disconnected  # type: ConnectionState
+
+    def launch(self):
+        self._thread.start()
 
     @staticmethod
     def _disable_external_logs():
@@ -156,10 +163,16 @@ class Connection(QObject):
     ################################################################################
     # Connection State
     ################################################################################
+    def _update_connection_state(self, new_state: ConnectionState, message: Optional[str]):
+        if new_state != ConnectionState.Connected:
+            self.recording_state = None
+
+        self.connection_state = new_state
+        self.connection_state_changed.emit(self.connection_state, message)
 
     def _handle_settings_change(self):
         self._disconnect()
-        self.connection_state_changed.emit(ConnectionState.Disconnected, "applying new settings")
+        self._update_connection_state(ConnectionState.Disconnected, "applying new settings")
 
     def _setup_logging(self):
         def update_logger(log):
@@ -180,7 +193,7 @@ class Connection(QObject):
         self.restart()
 
     def _on_event_client_disconnected(self):
-        self.connection_state_changed.emit(ConnectionState.Disconnected, "connection lost")
+        self._update_connection_state(ConnectionState.Disconnected, "connection lost")
 
     def _disconnect(self):
         if self._ws is not None:
@@ -195,17 +208,21 @@ class Connection(QObject):
 
     def stop(self):
         self.shutting_down = True
-        self.connection_state_changed.emit(ConnectionState.ShuttingDown, 'stop')
+        self._update_connection_state(ConnectionState.ShuttingDown, "stop")
 
         self._disconnect()
         self._thread.quit()
         self._thread.wait()
 
-        self.connection_state_changed.emit(ConnectionState.Disconnected, 'shut down')
+        self._update_connection_state(ConnectionState.Disconnected, "shut down")
 
     ################################################################################
     # Recording State
     ################################################################################
+
+    def _update_recording_state(self, new_state: RecordingState):
+        self.recording_state = new_state
+        self.recording_state_changed.emit(self.recording_state)
 
     def _check_recording_status(self):
         status = self._ws.get_record_status()
@@ -219,7 +236,7 @@ class Connection(QObject):
             else:
                 status = RecordingState.Active
 
-        self.recording_state_changed.emit(status)
+        self._update_recording_state(status)
 
     def on_record_state_changed(self, event):
         state = OutputState(event.output_state)
@@ -239,10 +256,11 @@ class Connection(QObject):
             status = None
 
         if status is not None:
-            self.recording_state_changed.emit(status)
+            self._update_recording_state(status)
 
     def restart(self):
-        self.connection_state_changed.emit(ConnectionState.Connecting, None)
+        self._update_connection_state(ConnectionState.Connecting, None)
+
         args = self._settings.obs.as_args()
         try:
             self._ws = obs.ReqClient(**args)
@@ -260,13 +278,14 @@ class Connection(QObject):
                 self.on_profile_list_changed,
             ))
 
-            self.connection_state_changed.emit(ConnectionState.Connected, None)
+            self._update_connection_state(ConnectionState.Connected, None)
 
             self._check_recording_status()
             self._fetch_profile_list()
             self._fetch_scene_collection_list()
         except Exception as e:
-            self.connection_state_changed.emit(ConnectionState.Error, str(e))
+            self._update_connection_state(ConnectionState.Error, str(e))
+            self.on_error.emit(str(e))
 
     ################################################################################
     # API wrappers
@@ -282,8 +301,8 @@ class Connection(QObject):
         for capture in resp.inputs:
             try:
                 self._ws.press_input_properties_button(capture['inputName'], "reactivate_capture")
-            except OBSSDKRequestError:
-                pass
+            except OBSSDKRequestError as e:
+                self.on_error.emit(str(e))
 
     def pause_recording(self):
         try:
@@ -295,8 +314,8 @@ class Connection(QObject):
                 return
 
             self._ws.pause_record()
-        except OBSSDKRequestError:
-            pass
+        except OBSSDKRequestError as e:
+            self.on_error.emit(str(e))
 
     def resume_recording(self):
         try:
@@ -308,5 +327,62 @@ class Connection(QObject):
                 return
 
             self._ws.resume_record()
-        except OBSSDKRequestError:
-            pass
+        except OBSSDKRequestError as e:
+            self.on_error.emit(str(e))
+
+    def start_recording(self):
+        try:
+            status = self._ws.get_record_status()
+            if status.output_active:
+                return
+
+            self._ws.start_record()
+        except OBSSDKRequestError as e:
+            self.on_error.emit(str(e))
+
+    def stop_recording(self):
+        try:
+            status = self._ws.get_record_status()
+            if not status.output_active:
+                return
+
+            self._ws.stop_record()
+        except OBSSDKRequestError as e:
+            self.on_error.emit(str(e))
+
+    def set_current_profile(self, profile: str):
+        try:
+            if profile not in self.profiles:
+                self.on_error.emit(f'Profile "{profile}" does not exist')
+                return
+
+            if profile == self.active_profile:
+                return
+
+            for i in range(10):
+                status = self._ws.get_record_status()
+                if status.output_active:
+                    QThread.sleep(1000)
+                    continue
+
+            status = self._ws.get_record_status()
+            if status.output_active:
+                self.on_error.emit('Profile cannot be changed while recording is active')
+                return
+
+            self._ws.set_current_profile(profile)
+        except OBSSDKRequestError as e:
+            self.on_error.emit(str(e))
+
+    def set_current_scene_collection(self, scene_collection: str):
+        try:
+            if scene_collection not in self.scene_collections:
+                self.on_error.emit(f'Scene collection "{scene_collection}" does not exist')
+                return
+
+            if scene_collection == self.active_scene_collection:
+                return
+
+            self._ws.set_current_scene_collection(scene_collection)
+        except OBSSDKRequestError as e:
+            self.on_error.emit(str(e))
