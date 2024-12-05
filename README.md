@@ -9,5 +9,7 @@ is unlocked.
 Build the standalone app with
 
 ```shell
-pyinstaller osh.spec
+pyinstaller osh_spec.py
 ```
+
+Note: on Windows you will need both the `osh.exe` and the `osh-display-list.exe` binaries to be in the same directory.
