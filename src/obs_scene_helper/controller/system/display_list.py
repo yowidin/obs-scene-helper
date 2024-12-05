@@ -11,14 +11,15 @@ class DisplayList(QObject):
         super().__init__(*args, **kwargs)
 
         if platform == 'win32':
-            # TODO: WinAPI provider
-            self._provider = None
+            from obs_scene_helper.controller.system.provider.display_list.windows import WindowsProvider
+            self._provider = WindowsProvider(*args, **kwargs)
         else:
             from obs_scene_helper.controller.system.provider.display_list.qt import QtProvider
             self._provider = QtProvider(*args, **kwargs)
-            self._provider.changed.connect(self._handle_display_list_change)
 
         if self._provider is not None:
+            self._provider.changed.connect(self._handle_display_list_change)
+
             # Simulate a display list changed event.
             # This way the clients will start with a valid list of displays
             self._handle_display_list_change(self._provider.displays)
