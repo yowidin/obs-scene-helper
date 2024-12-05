@@ -39,6 +39,7 @@ class OBSSceneHelperApp:
         self.pause_action = PauseOnScreenLock(self.obs_connection)
         self.display_switch_action = SwitchProfileAndSceneCollection(self.obs_connection, self.display_list,
                                                                      self.settings)
+        self.display_switch_action.preset_activated.connect(lambda x: self.tray_icon.preset_activated(x))
 
         # Launch the connection after all the components are initialized, ensuring that all signals are received
         # by all the components

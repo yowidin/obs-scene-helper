@@ -2,17 +2,19 @@ import time
 from enum import Enum
 from typing import List
 
-from PySide6.QtCore import QObject, QTimer
+from PySide6.QtCore import QObject, QTimer, Signal
 
 from obs_scene_helper.controller.obs.connection import Connection, RecordingState, ConnectionState
 from obs_scene_helper.controller.system.display_list import DisplayList
 from obs_scene_helper.controller.settings.settings import Settings
+from obs_scene_helper.model.settings.preset import Preset
 
 
 class SwitchProfileAndSceneCollection(QObject):
     """
     Change both the profile and the scene collection once a new display configuration is detected.
     """
+    preset_activated = Signal(Preset)
 
     class State(Enum):
         Idle = 0
@@ -85,7 +87,11 @@ class SwitchProfileAndSceneCollection(QObject):
         if self.state != SwitchProfileAndSceneCollection.State.StartingRecording:
             return
 
+        activated_preset = self.target_preset
+
         self._transition_to_idle()
+
+        self.preset_activated.emit(activated_preset)
 
         # TODO: Fix some inputs not being active on Windows / Macos (e.g. different source is selected or the macOS
         #  capture requiring a restart)
@@ -95,6 +101,11 @@ class SwitchProfileAndSceneCollection(QObject):
             return
 
         self.state = SwitchProfileAndSceneCollection.State.StartingRecording
+
+        if self.obs_connection.recording_state == RecordingState.Active:
+            self._handle_recording_started()
+            return
+
         self.obs_connection.start_recording()
 
     def _handle_profile_change(self, _: str):
@@ -130,6 +141,7 @@ class SwitchProfileAndSceneCollection(QObject):
         should_change_profile = target_preset.profile != self.obs_connection.active_profile
         if not should_change_profile and not should_change_scene_collection:
             # Desired preset already active
+            self.preset_activated.emit(self.target_preset)
             return
 
         if should_change_profile:

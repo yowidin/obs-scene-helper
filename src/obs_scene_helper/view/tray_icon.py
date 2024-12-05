@@ -5,6 +5,7 @@ from PySide6.QtGui import QIcon, QPainter, QColor, QPixmap, QColorConstants
 from PySide6.QtCore import QTimer, Qt, QRect, QSize, QObject, Signal
 
 from obs_scene_helper.controller.obs.connection import ConnectionState, RecordingState, Connection
+from obs_scene_helper.model.settings.preset import Preset
 
 
 class SystemTraySignals(QObject):
@@ -23,6 +24,7 @@ class TrayIcon(QSystemTrayIcon):
         self.animation_frame = 0
         self.extra_message = None
         self.last_error = None
+        self.last_preset = None  # type: Preset | None
 
         # Initialize animation timer
         self.animation_timer = QTimer(self)
@@ -44,6 +46,11 @@ class TrayIcon(QSystemTrayIcon):
         self.obs_connection.connection_state_changed.connect(self._connection_state_changed)
         self.obs_connection.recording_state_changed.connect(self._recording_state_changed)
         self.obs_connection.on_error.connect(self._on_error)
+
+    def preset_activated(self, new_preset: Preset):
+        self.last_preset = new_preset
+        print('Activated:', new_preset.name)
+        self._update_state()
 
     @property
     def _connection_state(self) -> ConnectionState:
@@ -143,6 +150,8 @@ class TrayIcon(QSystemTrayIcon):
                   f"Status: {self._connection_state.name}"
         if self._recording_state is not None:
             tooltip += f", recording is {self._recording_state.value}"
+        if self.last_preset is not None:
+            tooltip += f"\nPreset: {self.last_preset.name}"
         if self.extra_message is not None and len(self.extra_message) > 0:
             tooltip += f"\nMessage: {self.extra_message}"
         if self.last_error is not None and len(self.last_error) > 0:
