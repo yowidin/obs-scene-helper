@@ -13,6 +13,8 @@ from obs_scene_helper.controller.obs.event_client import EventClient
 from obs_scene_helper.controller.obs.output_state import OutputState
 from obs_scene_helper.controller.settings.settings import Settings
 
+from obs_scene_helper.controller.system.log import Log
+
 
 class ConnectionState(Enum):
     Connecting = 'Connecting'
@@ -52,7 +54,7 @@ class QtLogHandler(QObject):
 
 
 class Connection(QObject):
-    NO_LOGS = False
+    LOG_NAME = 'obsc'
 
     connection_state_changed = Signal(ConnectionState, str)  # Note: str is optional
     recording_state_changed = Signal(RecordingState)
@@ -67,10 +69,6 @@ class Connection(QObject):
 
     def __init__(self, settings: Settings, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        # Suppress logging
-        if Connection.NO_LOGS:
-            Connection._disable_external_logs()
 
         self._settings = settings
         self._settings.obs_changed.connect(self._handle_settings_change)
@@ -95,16 +93,11 @@ class Connection(QObject):
         self.recording_state = None  # type: Optional[RecordingState]
         self.connection_state = ConnectionState.Disconnected  # type: ConnectionState
 
+        self.log = Log.child(self.LOG_NAME)
+        self.log.debug('Initialized')
+
     def launch(self):
         self._thread.start()
-
-    @staticmethod
-    def _disable_external_logs():
-        import logging
-        import sys
-
-        logging.getLogger('obws_python').disabled = True
-        sys.stderr = None
 
     ################################################################################
     # Profiles
@@ -112,17 +105,26 @@ class Connection(QObject):
 
     def _update_active_profile(self, name):
         if name != self.active_profile:
+            self.log.info(f'Active profile change: {self.active_profile} -> {name}')
             self.active_profile = name
             self.active_profile_changed.emit(self.active_profile)
+        else:
+            self.log.info(f'Active profile unchanged: {name}')
 
     def _update_profile_list(self, new_profile_list):
         if sorted(new_profile_list) != sorted(self.profiles):
+            self.log.info(f'Profile list change: {self.profiles} -> {new_profile_list}')
             self.profiles = new_profile_list
             self.profile_list_changed.emit()
+        else:
+            self.log.info(f'Profile list unchanged: {self.profiles}')
 
     # noinspection PyUnresolvedReferences
     def _fetch_profile_list(self):
+        self.log.debug(f'Fetching profile list')
         res = self._ws.get_profile_list()
+
+        self.log.debug(f'Profile list fetched')
         self._update_profile_list(res.profiles)
         self._update_active_profile(res.current_profile_name)
 
@@ -138,17 +140,26 @@ class Connection(QObject):
 
     def _update_active_scene_collection(self, name):
         if name != self.active_scene_collection:
+            self.log.info(f'Active scene collection change: {self.active_scene_collection} -> {name}')
             self.active_scene_collection = name
             self.active_scene_collection_changed.emit(self.active_scene_collection)
+        else:
+            self.log.info(f'Active scene collection unchanged: {name}')
 
     def _update_scene_collection_list(self, new_scene_collection):
         if sorted(new_scene_collection) != sorted(self.scene_collections):
+            self.log.info(f'Scene collection list change: {self.scene_collections} -> {new_scene_collection}')
             self.scene_collections = new_scene_collection
             self.scene_collection_list_changed.emit()
+        else:
+            self.log.info(f'Scene collection list unchanged: {self.profiles}')
 
     # noinspection PyUnresolvedReferences
     def _fetch_scene_collection_list(self):
+        self.log.debug(f'Fetching scene collection list')
         res = self._ws.get_scene_collection_list()
+
+        self.log.debug(f'Scene collection list fetched')
         self._update_scene_collection_list(res.scene_collections)
         self._update_active_scene_collection(res.current_scene_collection_name)
 
@@ -164,7 +175,9 @@ class Connection(QObject):
     # Connection State
     ################################################################################
     def _update_connection_state(self, new_state: ConnectionState, message: Optional[str]):
+        self.log.debug(f'Updating connection state {new_state} ({message})')
         if new_state != ConnectionState.Connected:
+            self.log.debug(f'Resetting recording state')
             self.recording_state = None
 
         self.connection_state = new_state
@@ -177,7 +190,7 @@ class Connection(QObject):
     def _setup_logging(self):
         def update_logger(log):
             log.setLevel(logging.DEBUG)
-            log.addHandler(self.log_handler.handler)
+            log.addHandler(Log.INSTANCE.handler)
 
         for log_name, log_obj in logging.Logger.manager.loggerDict.items():
             if log_name.startswith('obws'):
@@ -196,17 +209,23 @@ class Connection(QObject):
         self._update_connection_state(ConnectionState.Disconnected, "connection lost")
 
     def _disconnect(self):
+        self.log.info(f'Disconnecting')
+
         if self._ws is not None:
+            self.log.info(f'Stopping request client')
             self._ws.base_client.ws.close()
             self._ws.disconnect()
             self._ws = None
 
         if self._events is not None:
+            self.log.info(f'Stopping event client')
             self._events.base_client.ws.close()
             self._events.disconnect()
             self._events = None
 
     def stop(self):
+        self.log.info(f'Shutting down')
+
         self.shutting_down = True
         self._update_connection_state(ConnectionState.ShuttingDown, "stop")
 
@@ -221,10 +240,12 @@ class Connection(QObject):
     ################################################################################
 
     def _update_recording_state(self, new_state: RecordingState):
+        self.log.info(f'Updating recoding state: {new_state}')
         self.recording_state = new_state
         self.recording_state_changed.emit(self.recording_state)
 
     def _check_recording_status(self):
+        self.log.debug(f'Checking recoding state')
         status = self._ws.get_record_status()
 
         # Note: we cannot detect intermediate states with a request
@@ -240,6 +261,7 @@ class Connection(QObject):
 
     def on_record_state_changed(self, event):
         state = OutputState(event.output_state)
+
         if state == OutputState.Starting:
             status = RecordingState.Starting
         elif state == OutputState.Started:
@@ -255,6 +277,8 @@ class Connection(QObject):
         else:
             status = None
 
+        self.log.info(f'Handling record state change: {state} ({status})')
+
         if status is not None:
             self._update_recording_state(status)
 
@@ -263,6 +287,8 @@ class Connection(QObject):
 
         args = self._settings.obs.as_args()
         try:
+            self.log.info(f'Restarting')
+
             self._ws = obs.ReqClient(**args)
             self._events = EventClient(on_disconnected=self._on_event_client_disconnected, **args)
             self._setup_logging()
@@ -284,6 +310,7 @@ class Connection(QObject):
             self._fetch_profile_list()
             self._fetch_scene_collection_list()
         except Exception as e:
+            self.log.warning(f'Connection error: {str(e)}')
             self._update_connection_state(ConnectionState.Error, str(e))
             self.on_error.emit(str(e))
 
@@ -291,6 +318,8 @@ class Connection(QObject):
     # API wrappers
     ################################################################################
     def restart_macos_captures(self):
+        self.log.info(f'Restarting macOS captures')
+
         # On macOS the "screen capture" inputs get "broken" after locking the screen, but luckily OBS provides a button
         # for restarting the capture.
         # In this function we are iterating over all inputs, where this button is present and ask OBS to press it.
@@ -300,66 +329,91 @@ class Connection(QObject):
         resp = self._ws.get_input_list('screen_capture')
         for capture in resp.inputs:
             try:
+                self.log.debug(f"Restarting {capture['inputName']}")
                 self._ws.press_input_properties_button(capture['inputName'], "reactivate_capture")
             except OBSSDKRequestError as e:
+                self.log.warning(f"Error restarting {capture['inputName']}: {str(e)}")
                 self.on_error.emit(str(e))
 
     def pause_recording(self):
+        self.log.debug(f"Pause recording")
+
         try:
             status = self._ws.get_record_status()
             if not status.output_active:
+                self.log.info(f"Skipping pause: output not active")
                 return
 
             if status.output_paused:
+                self.log.info(f"Skipping pause: already on pause")
                 return
 
             self._ws.pause_record()
         except OBSSDKRequestError as e:
+            self.log.warning(f"Pause error: {str(e)}")
             self.on_error.emit(str(e))
 
     def resume_recording(self):
+        self.log.debug(f"Resume recording")
+
         try:
             status = self._ws.get_record_status()
             if not status.output_active:
+                self.log.info(f"Skipping resume: output not active")
                 return
 
             if not status.output_paused:
+                self.log.info(f"Skipping resume: already resumed")
                 return
 
             self._ws.resume_record()
         except OBSSDKRequestError as e:
+            self.log.warning(f"Resume error: {str(e)}")
             self.on_error.emit(str(e))
 
     def start_recording(self):
+        self.log.debug(f"Starting recording")
+
         try:
             status = self._ws.get_record_status()
             if status.output_active:
+                self.log.info(f"Skipping start: output already active")
                 return
 
             self._ws.start_record()
         except OBSSDKRequestError as e:
+            self.log.warning(f"Start error: {str(e)}")
             self.on_error.emit(str(e))
 
     def stop_recording(self):
+        self.log.debug(f"Stopping recording")
+
         try:
             status = self._ws.get_record_status()
             if not status.output_active:
+                self.log.info(f"Skipping stop: output not active")
                 return
 
             self._ws.stop_record()
         except OBSSDKRequestError as e:
+            self.log.warning(f"Stop error: {str(e)}")
             self.on_error.emit(str(e))
 
     def set_current_profile(self, profile: str):
+        self.log.debug(f"Setting current profile: {profile}")
+
         try:
             if profile not in self.profiles:
+                self.log.error(f'Profile "{profile}" does not exist')
                 self.on_error.emit(f'Profile "{profile}" does not exist')
                 return
 
             if profile == self.active_profile:
+                self.log.info(f'Skipping profile set: already active')
                 return
 
-            for i in range(10):
+            self.log.info(f'Waiting for record status')
+            for i in range(30):
                 status = self._ws.get_record_status()
                 if status.output_active:
                     QThread.sleep(1000)
@@ -367,22 +421,29 @@ class Connection(QObject):
 
             status = self._ws.get_record_status()
             if status.output_active:
+                self.log.error('Profile cannot be changed while recording is active')
                 self.on_error.emit('Profile cannot be changed while recording is active')
                 return
 
             self._ws.set_current_profile(profile)
         except OBSSDKRequestError as e:
+            self.log.warning(f"Profile set error: {str(e)}")
             self.on_error.emit(str(e))
 
     def set_current_scene_collection(self, scene_collection: str):
+        self.log.debug(f"Setting current scene collection: {scene_collection}")
+
         try:
             if scene_collection not in self.scene_collections:
+                self.log.error(f'Scene collection "{scene_collection}" does not exist')
                 self.on_error.emit(f'Scene collection "{scene_collection}" does not exist')
                 return
 
             if scene_collection == self.active_scene_collection:
+                self.log.info(f'Skipping scene collection set: already active')
                 return
 
             self._ws.set_current_scene_collection(scene_collection)
         except OBSSDKRequestError as e:
+            self.log.warning(f"Scene collection set error: {str(e)}")
             self.on_error.emit(str(e))
