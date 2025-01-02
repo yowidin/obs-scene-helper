@@ -6,11 +6,12 @@ import subprocess
 import json
 
 from PySide6.QtCore import QObject, Signal
-from PySide6.QtWidgets import QMessageBox
 
 import win32con
 from win32gui import CreateWindowEx, WNDCLASS, RegisterClass, DefWindowProc, DestroyWindow
 from win32api import GetModuleHandle
+
+from obs_scene_helper.controller.system.log import Log
 
 
 # On Windows 10 the Qt does not correctly react to display configuration changes, for example: switching from
@@ -61,18 +62,24 @@ class ScreenChangeObserver:
 
 
 class WindowsProvider(QObject):
+    LOG_NAME = 'wdl'
+
     changed = Signal(list)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self.log = Log.child(self.LOG_NAME)
 
         self._screen_change_observer = ScreenChangeObserver(self._on_screen_configuration_changed)
 
         self._displays = []
         self._fetch_display_list()
 
+        self.log.debug('Initialized')
+
     def _on_screen_configuration_changed(self, *_):
-        print(f'Screen config changed!')
+        self.log.debug(f'Screen configuration changed')
         self._fetch_display_list()
 
     @property
@@ -100,6 +107,8 @@ class WindowsProvider(QObject):
 
     def _fetch_display_list(self):
         try:
+            self.log.debug('Fetching display list')
+
             if self._is_running_from_exe():
                 get_result = self._get_display_list_standalone()
             else:
@@ -107,14 +116,17 @@ class WindowsProvider(QObject):
 
             displays_json = json.loads(get_result)
             new_list = [x['name'] for x in displays_json]
-            print(f'New temporary list: {new_list}')
+            self.log.debug(f'New temporary list: {new_list}')
 
             if sorted(self._displays) != sorted(new_list):
                 self._displays = new_list
                 self.changed.emit(self._displays)
+                self.log.info(f'Display list changed')
+            else:
+                self.log.info(f'Display list not unchanged')
 
         except Exception as e:
-            QMessageBox.information(None, "OSH Error", f"Error getting display list: {str(e)}")
+            self.log.error(f"Error getting display list: {str(e)}")
 
 
 def get_display_list():

@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QLineEdit, QTableView, QHeaderView
 from PySide6.QtWidgets import QPushButton
 
-from PySide6.QtCore import Qt, QSortFilterProxyModel
+from PySide6.QtCore import Qt, QSortFilterProxyModel, QSize
 
 from obs_scene_helper.controller.system.log import Log
 from obs_scene_helper.model.log.table import Column, Table as LogTable
@@ -75,7 +75,7 @@ class Logs(AppWindow):
 
         self.setLayout(layout)
 
-        self.setMinimumSize(self.sizeHint())
+        self.setMinimumSize(QSize(800, 600))
 
         self.search_box.textChanged.connect(self._on_search_text_changed)
         clear_filters_button.clicked.connect(self._clear_filters)
