@@ -13,13 +13,18 @@ from obs_scene_helper.controller.system.display_list import DisplayList
 from obs_scene_helper.controller.actions.pause_on_screen_lock import PauseOnScreenLock
 from obs_scene_helper.controller.actions.switch_profile_and_scene_collection import SwitchProfileAndSceneCollection
 
+from obs_scene_helper.controller.system.log import Log as LogController
+
 from obs_scene_helper.view.tray_icon import TrayIcon
 from obs_scene_helper.view.settings.obs import OBSSettingsDialog
 from obs_scene_helper.view.widgets.preset_list import PresetList
+from obs_scene_helper.view.widgets.logs import Logs as LogsWidget
 
 
 class OBSSceneHelperApp:
     def __init__(self):
+        LogController.setup()
+
         self.app = QApplication(sys.argv)
         self.app.setQuitOnLastWindowClosed(False)
 
@@ -33,26 +38,37 @@ class OBSSceneHelperApp:
         self.tray_icon.signals.quit_requested.connect(self._close_requested)
         self.tray_icon.signals.presets_list_requested.connect(self._presets_list_requested)
         self.tray_icon.signals.obs_settings_requested.connect(self._obs_settings_requested)
+        self.tray_icon.signals.logs_requested.connect(self._logs_requested)
 
         self._setup_platform_specifics()
 
         self.pause_action = PauseOnScreenLock(self.obs_connection)
         self.display_switch_action = SwitchProfileAndSceneCollection(self.obs_connection, self.display_list,
                                                                      self.settings)
+        self.display_switch_action.preset_activated.connect(lambda x: self.tray_icon.preset_activated(x))
 
         # Launch the connection after all the components are initialized, ensuring that all signals are received
         # by all the components
         self.obs_connection.launch()
 
         self.presets = None  # type: Optional[PresetList]
+        self.logs = None  # type: Optional[LogsWidget]
 
     def _make_preset_list_window(self) -> PresetList:
         self.presets = PresetList(self.settings, self.obs_connection)
         self.presets.destroyed.connect(self._handle_presets_window_destroyed)
         return self.presets
 
+    def _make_logs_window(self) -> LogsWidget:
+        self.logs = LogsWidget()
+        self.logs.destroyed.connect(self._handle_logs_window_destroyed)
+        return self.logs
+
     def _handle_presets_window_destroyed(self):
         self.presets = None
+
+    def _handle_logs_window_destroyed(self):
+        self.logs = None
 
     # noinspection PyPackageRequirements,PyUnresolvedReferences
     @staticmethod
@@ -87,6 +103,15 @@ class OBSSceneHelperApp:
     def _obs_settings_requested(self):
         dialog = OBSSettingsDialog(self.settings)
         dialog.exec()
+
+    def _logs_requested(self):
+        if self.logs is None:
+            self.logs = self._make_logs_window()
+            self.logs.show()
+            self.logs.raise_()
+            self.logs.activateWindow()
+        else:
+            self.logs.close()
 
     @staticmethod
     def run():

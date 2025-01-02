@@ -14,6 +14,8 @@ from obsws_python.callback import Callback
 from obsws_python.error import OBSSDKError, OBSSDKTimeoutError
 from obsws_python.subs import Subs
 
+from obs_scene_helper.controller.system.log import Log
+
 """
 A class to interact with obs-websocket events
 defined in official github repo
@@ -24,8 +26,10 @@ logger = logging.getLogger(__name__)
 
 
 class EventClient:
+    LOG_NAME = 'ec'
+
     def __init__(self, on_disconnected, **kwargs):
-        self.logger = logger.getChild(self.__class__.__name__)
+        self.logger = Log.child(self.LOG_NAME)
         defaultkwargs = {"subs": Subs.LOW_VOLUME}
         kwargs = defaultkwargs | kwargs
         self.base_client = ObsClient(**kwargs)
