@@ -43,11 +43,6 @@ ENV/
 ehthumbs.db
 Thumbs.db
 
-# Logs
-*.log
-logs/
-log/
-
 # Local development
 *.sqlite3
 *.db
