@@ -84,7 +84,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: |
-            artifact/*
+            artifact/**/*
           fail_on_unmatched_files: true
 
   # pointless job that allows using a single check for PR dependencies
