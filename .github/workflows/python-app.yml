@@ -18,19 +18,25 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.image }}
     strategy:
           fail-fast: false
-          max-parallel: 3
           matrix:
             include:
-              - os: ubuntu-24.04
+              - image: ubuntu-24.04
+                os: linux
                 cpu: x64
-              - os: windows-2022
+
+              - image: windows-2022
+                os: windows
                 cpu: x64
-              - os: macos-13
+
+              - image: macos-13
+                os: macos
                 cpu: x64
-              - os: macos-14
+
+              - image: macos-14
+                os: macos
                 cpu: arm
 
     steps:
@@ -58,7 +64,7 @@ jobs:
 
     - name: Collect artifcats
       run: |
-        poetry run python ./ci/collect-artifacts.py
+        poetry run python ./ci/collect-artifacts.py -p osh -d dist -o ${{ matrix.os }} -f ${{ matrix.cpu }}
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
