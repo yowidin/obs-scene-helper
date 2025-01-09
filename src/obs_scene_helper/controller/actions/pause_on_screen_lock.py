@@ -45,6 +45,11 @@ class PauseOnScreenLock(QObject):
         if self.state == PauseOnScreenLock.State.WaitingForResumeEvent and new_state == RecordingState.Active:
             return self._resume_done()
 
+        if self.state != PauseOnScreenLock.State.Idle and new_state in [RecordingState.Stopped, RecordingState.Starting,
+                                                                        RecordingState.Stopping]:
+            self.log.debug(f'Inconsistent state: {self.state}')
+            self.state = PauseOnScreenLock.State.Idle
+
     def _pause_done(self):
         # Nothing to do here
         self.state = PauseOnScreenLock.State.Idle
