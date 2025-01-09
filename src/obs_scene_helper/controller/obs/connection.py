@@ -200,7 +200,10 @@ class Connection(QObject):
             update_logger(self._ws.logger)
 
         if self._events is not None:
-            update_logger(self._events.logger)
+            # Note: we are not updating the events logger here because it already contains a change to use
+            # a child logger
+            # update_logger(self._events.logger)
+            pass
 
     def _started(self):
         self.restart()
