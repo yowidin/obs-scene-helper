@@ -8,16 +8,16 @@ class ProfileList(QComboBox):
         super().__init__(*args, **kwargs)
 
         self._connection = connection
-        self._connection.profile_list_changed.connect(self._update_profiles)
+        self._connection.profiles.list_changed.connect(self._update_profiles)
 
-        self.addItems(connection.profiles)
-        self.setCurrentText(self._connection.active_profile)
+        self.addItems(connection.profiles.list)
+        self.setCurrentText(self._connection.profiles.active)
 
     def _update_profiles(self):
         selection = self.currentText()
 
         self.clear()
-        self.addItems(self._connection.profiles)
+        self.addItems(self._connection.profiles.list)
 
-        if selection is not None and selection in self._connection.profiles:
-            self.setCurrentIndex(self._connection.profiles.index(selection))
+        if selection is not None and selection in self._connection.profiles.list:
+            self.setCurrentIndex(self._connection.profiles.list.index(selection))

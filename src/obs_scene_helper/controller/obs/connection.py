@@ -29,9 +29,6 @@ class Connection(QObject):
 
     connection_state_changed = Signal(ConnectionState, str)  # Note: str is optional
 
-    profile_list_changed = Signal()
-    active_profile_changed = Signal(str)
-
     scene_collection_list_changed = Signal()
     active_scene_collection_changed = Signal(str)
 
@@ -39,6 +36,7 @@ class Connection(QObject):
 
     def __init__(self, settings: Settings, *args, **kwargs):
         from obs_scene_helper.controller.obs.recording import Recording
+        from obs_scene_helper.controller.obs.profiles import Profiles
 
         super().__init__(*args, **kwargs)
 
@@ -54,14 +52,14 @@ class Connection(QObject):
 
         self.shutting_down = False
 
-        self.profiles = []  # type: List[str]
-        self.active_profile = None  # type: Optional[str]
-
         self.scene_collections = []  # type: List[str]
         self.active_scene_collection = None  # type: Optional[str]
 
         self.recording = Recording(self)
-        self.recording.on_error.connect(self._on_recording_error)
+        self.recording.on_error.connect(lambda msg: self.on_error.emit(msg))
+
+        self.profiles = Profiles(self)
+        self.profiles.on_error.connect(lambda msg: self.on_error.emit(msg))
 
         self.connection_state = ConnectionState.Disconnected  # type: ConnectionState
 
@@ -72,46 +70,8 @@ class Connection(QObject):
     def ws(self) -> obs.ReqClient | None:
         return self._ws
 
-    def _on_recording_error(self, error: str):
-        self.on_error.emit(error)
-
     def launch(self):
         self._thread.start()
-
-    ################################################################################
-    # Profiles
-    ################################################################################
-
-    def _update_active_profile(self, name):
-        if name != self.active_profile:
-            self.log.info(f'Active profile change: {self.active_profile} -> {name}')
-            self.active_profile = name
-            self.active_profile_changed.emit(self.active_profile)
-        else:
-            self.log.info(f'Active profile unchanged: {name}')
-
-    def _update_profile_list(self, new_profile_list):
-        if sorted(new_profile_list) != sorted(self.profiles):
-            self.log.info(f'Profile list change: {self.profiles} -> {new_profile_list}')
-            self.profiles = new_profile_list
-            self.profile_list_changed.emit()
-        else:
-            self.log.info(f'Profile list unchanged: {self.profiles}')
-
-    # noinspection PyUnresolvedReferences
-    def _fetch_profile_list(self):
-        self.log.debug(f'Fetching profile list')
-        res = self._ws.get_profile_list()
-
-        self.log.debug(f'Profile list fetched')
-        self._update_profile_list(res.profiles)
-        self._update_active_profile(res.current_profile_name)
-
-    def on_current_profile_changed(self, event):
-        self._update_active_profile(event.profile_name)
-
-    def on_profile_list_changed(self, event):
-        self._update_profile_list(event.profiles)
 
     ################################################################################
     # Scene Collections
@@ -131,7 +91,7 @@ class Connection(QObject):
             self.scene_collections = new_scene_collection
             self.scene_collection_list_changed.emit()
         else:
-            self.log.info(f'Scene collection list unchanged: {self.profiles}')
+            self.log.info(f'Scene collection list unchanged: {self.scene_collections}')
 
     # noinspection PyUnresolvedReferences
     def _fetch_scene_collection_list(self):
@@ -226,20 +186,17 @@ class Connection(QObject):
             self._setup_logging()
 
             callbacks = [
-                self.on_current_profile_changed,
                 self.on_current_scene_collection_changed,
-
                 self.on_scene_collection_list_changed,
-                self.on_profile_list_changed,
             ]
             callbacks.extend(self.recording.obs_callbacks())
+            callbacks.extend(self.profiles.obs_callbacks())
 
             # Register event callbacks
             self._events.callback.register(callbacks)
 
             self._update_connection_state(ConnectionState.Connected, None)
 
-            self._fetch_profile_list()
             self._fetch_scene_collection_list()
         except Exception as e:
             self.log.warning(f'Connection error: {str(e)}')
@@ -266,37 +223,6 @@ class Connection(QObject):
             except OBSSDKRequestError as e:
                 self.log.warning(f"Error restarting {capture['inputName']}: {str(e)}")
                 self.on_error.emit(str(e))
-
-    def set_current_profile(self, profile: str):
-        self.log.debug(f"Setting current profile: {profile}")
-
-        try:
-            if profile not in self.profiles:
-                self.log.error(f'Profile "{profile}" does not exist')
-                self.on_error.emit(f'Profile "{profile}" does not exist')
-                return
-
-            if profile == self.active_profile:
-                self.log.info(f'Skipping profile set: already active')
-                return
-
-            self.log.info(f'Waiting for record status')
-            for i in range(30):
-                status = self._ws.get_record_status()
-                if status.output_active:
-                    QThread.sleep(1000)
-                    continue
-
-            status = self._ws.get_record_status()
-            if status.output_active:
-                self.log.error('Profile cannot be changed while recording is active')
-                self.on_error.emit('Profile cannot be changed while recording is active')
-                return
-
-            self._ws.set_current_profile(profile)
-        except OBSSDKRequestError as e:
-            self.log.warning(f"Profile set error: {str(e)}")
-            self.on_error.emit(str(e))
 
     def set_current_scene_collection(self, scene_collection: str):
         self.log.debug(f"Setting current scene collection: {scene_collection}")
