@@ -32,27 +32,6 @@ class RecordingState(Enum):
     Stopped = 'stopped'
 
 
-class LogHandler(logging.Handler):
-    def __init__(self, on_new_record):
-        logging.Handler.__init__(self)
-        self.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-        self.on_new_record = on_new_record
-
-    def emit(self, record):
-        msg = self.format(record)
-        if self.on_new_record:
-            self.on_new_record(msg)
-
-
-class QtLogHandler(QObject):
-    new_record = Signal(str)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.handler = LogHandler(on_new_record=lambda x: self.new_record.emit(x))
-        self.handler.setLevel(logging.DEBUG)
-
-
 class Connection(QObject):
     LOG_NAME = 'obsc'
 
@@ -74,8 +53,6 @@ class Connection(QObject):
         self._settings.obs_changed.connect(self._handle_settings_change)
         self._thread = QThread()
         self.moveToThread(self._thread)
-
-        self.log_handler = QtLogHandler()
 
         self._thread.started.connect(self._started)
 
