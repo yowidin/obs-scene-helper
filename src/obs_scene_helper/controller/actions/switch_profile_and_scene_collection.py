@@ -38,7 +38,7 @@ class SwitchProfileAndSceneCollection(QObject):
         self.obs_connection.recording.state_changed.connect(self._handle_record_state_change)
         self.obs_connection.connection_state_changed.connect(self._handle_connection_state_change)
         self.obs_connection.on_error.connect(self._handle_obs_error)
-        self.obs_connection.active_scene_collection_changed.connect(self._handle_scene_collection_change)
+        self.obs_connection.scene_collections.active_changed.connect(self._handle_scene_collection_change)
         self.obs_connection.profiles.active_changed.connect(self._handle_profile_change)
 
         self.display_list = display_list
@@ -149,13 +149,13 @@ class SwitchProfileAndSceneCollection(QObject):
         self.state = SwitchProfileAndSceneCollection.State.ChangingSceneCollection
         self.log.debug(f"Transition to {self.state}")
 
-        if self.obs_connection.active_scene_collection == self.target_preset.scene_collection:
+        if self.obs_connection.scene_collections.active == self.target_preset.scene_collection:
             self.log.info(f"Target scene collection already active: {self.target_preset.scene_collection}")
-            self._handle_scene_collection_change(self.obs_connection.active_scene_collection)
+            self._handle_scene_collection_change(self.obs_connection.scene_collections.active)
             return
 
         self.log.info(f"Switching scene collection: {self.target_preset.scene_collection}")
-        self.obs_connection.set_current_scene_collection(self.target_preset.scene_collection)
+        self.obs_connection.scene_collections.set_active(self.target_preset.scene_collection)
 
     def _handle_display_list_change(self, _: List[str]):
         self.log.debug(f"Handling display list change")
@@ -180,7 +180,7 @@ class SwitchProfileAndSceneCollection(QObject):
         self.target_preset = target_preset
         self.log.info(f"Target preset: {self.target_preset}")
 
-        should_change_scene_collection = target_preset.scene_collection != self.obs_connection.active_scene_collection
+        should_change_scene_collection = target_preset.scene_collection != self.obs_connection.scene_collections.active
         should_change_profile = target_preset.profile != self.obs_connection.profiles.active
         if not should_change_profile and not should_change_scene_collection:
             # Desired preset already active
@@ -215,4 +215,4 @@ class SwitchProfileAndSceneCollection(QObject):
         # Both the profile and the scene collection are the same: pretend we just finished switching
         self.state = SwitchProfileAndSceneCollection.State.ChangingSceneCollection
         self.log.debug(f"Transition to {self.state}, simulation scene collection change")
-        self._handle_scene_collection_change(self.obs_connection.active_scene_collection)
+        self._handle_scene_collection_change(self.obs_connection.scene_collections.active)

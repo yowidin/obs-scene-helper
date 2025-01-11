@@ -29,14 +29,12 @@ class Connection(QObject):
 
     connection_state_changed = Signal(ConnectionState, str)  # Note: str is optional
 
-    scene_collection_list_changed = Signal()
-    active_scene_collection_changed = Signal(str)
-
     on_error = Signal(str)
 
     def __init__(self, settings: Settings, *args, **kwargs):
         from obs_scene_helper.controller.obs.recording import Recording
         from obs_scene_helper.controller.obs.profiles import Profiles
+        from obs_scene_helper.controller.obs.scene_collections import SceneCollections
 
         super().__init__(*args, **kwargs)
 
@@ -52,14 +50,14 @@ class Connection(QObject):
 
         self.shutting_down = False
 
-        self.scene_collections = []  # type: List[str]
-        self.active_scene_collection = None  # type: Optional[str]
-
         self.recording = Recording(self)
         self.recording.on_error.connect(lambda msg: self.on_error.emit(msg))
 
         self.profiles = Profiles(self)
         self.profiles.on_error.connect(lambda msg: self.on_error.emit(msg))
+
+        self.scene_collections = SceneCollections(self)
+        self.scene_collections.on_error.connect(lambda msg: self.on_error.emit(msg))
 
         self.connection_state = ConnectionState.Disconnected  # type: ConnectionState
 
@@ -72,43 +70,6 @@ class Connection(QObject):
 
     def launch(self):
         self._thread.start()
-
-    ################################################################################
-    # Scene Collections
-    ################################################################################
-
-    def _update_active_scene_collection(self, name):
-        if name != self.active_scene_collection:
-            self.log.info(f'Active scene collection change: {self.active_scene_collection} -> {name}')
-            self.active_scene_collection = name
-            self.active_scene_collection_changed.emit(self.active_scene_collection)
-        else:
-            self.log.info(f'Active scene collection unchanged: {name}')
-
-    def _update_scene_collection_list(self, new_scene_collection):
-        if sorted(new_scene_collection) != sorted(self.scene_collections):
-            self.log.info(f'Scene collection list change: {self.scene_collections} -> {new_scene_collection}')
-            self.scene_collections = new_scene_collection
-            self.scene_collection_list_changed.emit()
-        else:
-            self.log.info(f'Scene collection list unchanged: {self.scene_collections}')
-
-    # noinspection PyUnresolvedReferences
-    def _fetch_scene_collection_list(self):
-        self.log.debug(f'Fetching scene collection list')
-        res = self._ws.get_scene_collection_list()
-
-        self.log.debug(f'Scene collection list fetched')
-        self._update_scene_collection_list(res.scene_collections)
-        self._update_active_scene_collection(res.current_scene_collection_name)
-
-    def on_current_scene_collection_changed(self, _):
-        # Somehow, we are not getting notified about scene collection list changes
-        self._fetch_scene_collection_list()
-        # self._update_active_scene_collection(event.scene_collection_name)
-
-    def on_scene_collection_list_changed(self, event):
-        self._update_scene_collection_list(event.scene_collections)
 
     ################################################################################
     # Connection State
@@ -185,19 +146,15 @@ class Connection(QObject):
             self._events = EventClient(on_disconnected=self._on_event_client_disconnected, **args)
             self._setup_logging()
 
-            callbacks = [
-                self.on_current_scene_collection_changed,
-                self.on_scene_collection_list_changed,
-            ]
+            callbacks = []
             callbacks.extend(self.recording.obs_callbacks())
             callbacks.extend(self.profiles.obs_callbacks())
+            callbacks.extend(self.scene_collections.obs_callbacks())
 
             # Register event callbacks
             self._events.callback.register(callbacks)
 
             self._update_connection_state(ConnectionState.Connected, None)
-
-            self._fetch_scene_collection_list()
         except Exception as e:
             self.log.warning(f'Connection error: {str(e)}')
             self._update_connection_state(ConnectionState.Error, str(e))
@@ -224,20 +181,3 @@ class Connection(QObject):
                 self.log.warning(f"Error restarting {capture['inputName']}: {str(e)}")
                 self.on_error.emit(str(e))
 
-    def set_current_scene_collection(self, scene_collection: str):
-        self.log.debug(f"Setting current scene collection: {scene_collection}")
-
-        try:
-            if scene_collection not in self.scene_collections:
-                self.log.error(f'Scene collection "{scene_collection}" does not exist')
-                self.on_error.emit(f'Scene collection "{scene_collection}" does not exist')
-                return
-
-            if scene_collection == self.active_scene_collection:
-                self.log.info(f'Skipping scene collection set: already active')
-                return
-
-            self._ws.set_current_scene_collection(scene_collection)
-        except OBSSDKRequestError as e:
-            self.log.warning(f"Scene collection set error: {str(e)}")
-            self.on_error.emit(str(e))
