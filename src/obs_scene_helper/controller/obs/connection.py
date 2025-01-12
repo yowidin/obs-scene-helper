@@ -35,6 +35,7 @@ class Connection(QObject):
         from obs_scene_helper.controller.obs.recording import Recording
         from obs_scene_helper.controller.obs.profiles import Profiles
         from obs_scene_helper.controller.obs.scene_collections import SceneCollections
+        from obs_scene_helper.controller.obs.inputs import Inputs
 
         super().__init__(*args, **kwargs)
 
@@ -58,6 +59,9 @@ class Connection(QObject):
 
         self.scene_collections = SceneCollections(self)
         self.scene_collections.on_error.connect(lambda msg: self.on_error.emit(msg))
+
+        self.inputs = Inputs(self)
+        self.inputs.on_error.connect(lambda msg: self.on_error.emit(msg))
 
         self.connection_state = ConnectionState.Disconnected  # type: ConnectionState
 
@@ -150,6 +154,7 @@ class Connection(QObject):
             callbacks.extend(self.recording.obs_callbacks())
             callbacks.extend(self.profiles.obs_callbacks())
             callbacks.extend(self.scene_collections.obs_callbacks())
+            callbacks.extend(self.inputs.obs_callbacks())
 
             # Register event callbacks
             self._events.callback.register(callbacks)
