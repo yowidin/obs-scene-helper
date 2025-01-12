@@ -59,7 +59,6 @@ class PauseOnScreenLock(QObject):
         self.log.info('Pause done')
 
     def _resume_done(self):
-        self.obs_connection.restart_macos_captures()
         self.state = PauseOnScreenLock.State.Idle
         self.log.info('Resume done')
 

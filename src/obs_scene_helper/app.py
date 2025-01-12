@@ -47,6 +47,11 @@ class OBSSceneHelperApp:
                                                                      self.settings)
         self.display_switch_action.preset_activated.connect(lambda x: self.tray_icon.preset_activated(x))
 
+        if sys.platform == 'darwin':
+            from obs_scene_helper.controller.actions.workarounds.macos.fix_inputs_after_recording_resume import \
+                FixInputsAfterRecordingResume
+            self.fix_macos_inputs = FixInputsAfterRecordingResume(self.obs_connection)
+
         # Launch the connection after all the components are initialized, ensuring that all signals are received
         # by all the components
         self.obs_connection.launch()

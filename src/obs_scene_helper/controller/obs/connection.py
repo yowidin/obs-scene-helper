@@ -1,13 +1,11 @@
 from enum import Enum
-from typing import Optional, List
+from typing import Optional
 
 import logging
-import sys
 
 from PySide6.QtCore import QObject, QThread, Signal
 
 import obsws_python as obs
-from obsws_python.error import OBSSDKRequestError
 
 from obs_scene_helper.controller.obs.event_client import EventClient
 
@@ -164,25 +162,3 @@ class Connection(QObject):
             self.log.warning(f'Connection error: {str(e)}')
             self._update_connection_state(ConnectionState.Error, str(e))
             self.on_error.emit(str(e))
-
-    ################################################################################
-    # API wrappers
-    ################################################################################
-    def restart_macos_captures(self):
-        self.log.info(f'Restarting macOS captures')
-
-        # On macOS the "screen capture" inputs get "broken" after locking the screen, but luckily OBS provides a button
-        # for restarting the capture.
-        # In this function we are iterating over all inputs, where this button is present and ask OBS to press it.
-        if sys.platform != 'darwin':
-            return
-
-        resp = self._ws.get_input_list('screen_capture')
-        for capture in resp.inputs:
-            try:
-                self.log.debug(f"Restarting {capture['inputName']}")
-                self._ws.press_input_properties_button(capture['inputName'], "reactivate_capture")
-            except OBSSDKRequestError as e:
-                self.log.warning(f"Error restarting {capture['inputName']}: {str(e)}")
-                self.on_error.emit(str(e))
-
