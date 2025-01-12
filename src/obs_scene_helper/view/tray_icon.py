@@ -1,10 +1,11 @@
 from typing import Optional
 
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu
-from PySide6.QtGui import QIcon, QPainter, QColor, QPixmap, QColorConstants
+from PySide6.QtGui import QIcon, QPainter, QColor, QPixmap, QColorConstants, QPainterPath, QPen
 from PySide6.QtCore import QTimer, Qt, QRect, QSize, QObject, Signal
 
-from obs_scene_helper.controller.obs.connection import ConnectionState, RecordingState, Connection
+from obs_scene_helper.controller.obs.connection import ConnectionState, Connection
+from obs_scene_helper.controller.obs.recording import RecordingState
 from obs_scene_helper.model.settings.preset import Preset
 
 
@@ -46,7 +47,7 @@ class TrayIcon(QSystemTrayIcon):
 
         # Connect signals
         self.obs_connection.connection_state_changed.connect(self._connection_state_changed)
-        self.obs_connection.recording_state_changed.connect(self._recording_state_changed)
+        self.obs_connection.recording.state_changed.connect(self._recording_state_changed)
         self.obs_connection.on_error.connect(self._on_error)
 
     def preset_activated(self, new_preset: Preset):
@@ -58,8 +59,8 @@ class TrayIcon(QSystemTrayIcon):
         return self.obs_connection.connection_state
 
     @property
-    def _recording_state(self) -> Optional[RecordingState]:
-        return self.obs_connection.recording_state
+    def _recording_state(self) -> RecordingState:
+        return self.obs_connection.recording.state
 
     def _connection_state_changed(self, state: ConnectionState, message: Optional[str]):
         self.extra_message = message
@@ -91,36 +92,68 @@ class TrayIcon(QSystemTrayIcon):
         else:
             painter.setBrush(QColor(128, 128, 128))  # Gray for disconnected
 
-        outer_rect = QRect(4, 4, 56, 56)
+        outer_rect = QRect(2, 2, 60, 60)
+        inner_rect = QRect(14, 14, 36, 36)
+
         painter.drawEllipse(outer_rect)
+
+        def draw_animated_wheel():
+            painter.save()
+            painter.translate(32, 32)
+            painter.rotate(self.animation_frame * 4.5)
+            for i in range(8):
+                painter.rotate(45)
+                painter.drawEllipse(-8, -20, 4, 14)
+            painter.restore()
+
+        def draw_pause_bars():
+            painter.drawRect(18, 16, 10, 32)
+            painter.drawRect(36, 16, 10, 32)
+
+        def draw_active_recording():
+            painter.drawEllipse(inner_rect)
+
+        def draw_stopped_recording():
+            painter.drawRect(18, 18, 28, 28)
+
+        def draw_question_mark():
+            painter.save()
+            path = QPainterPath()
+
+            path.moveTo(22, 22)  # Start at the beginning of the top part
+            path.arcTo(22, 14, 20, 20, 180, -270)  # curved top part
+            path.lineTo(32, 38)  # stem down
+
+            # Bottom dot
+            path.moveTo(32, 50)
+            path.addEllipse(30, 48, 4, 4)
+
+            # Set pen for outline
+            painter.setPen(QPen(QColorConstants.White, 4, Qt.PenStyle.SolidLine))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+
+            painter.drawPath(path)
+            painter.restore()
 
         # Draw recording status indicator
         if self._connection_state == ConnectionState.Connected:
             painter.setBrush(QColorConstants.White)
-            inner_rect = QRect(16, 16, 32, 32)
 
             if self._recording_state in [RecordingState.Starting, RecordingState.Stopping]:
                 # Draw animated loading segments
-                painter.save()
-                painter.translate(32, 32)
-                painter.rotate(self.animation_frame * 4.5)
-                for i in range(8):
-                    painter.rotate(45)
-                    painter.drawRect(-2, -16, 4, 8)
-                painter.restore()
+                draw_animated_wheel()
 
             elif self._recording_state == RecordingState.Active:
-                # Draw recording circle
-                painter.drawEllipse(inner_rect)
+                draw_active_recording()
 
             elif self._recording_state == RecordingState.Paused:
-                # Draw pause bars
-                painter.drawRect(24, 16, 6, 32)
-                painter.drawRect(34, 16, 6, 32)
+                draw_pause_bars()
 
             elif self._recording_state == RecordingState.Stopped:
-                # Draw stop square
-                painter.drawRect(inner_rect)
+                draw_stopped_recording()
+
+            elif self._recording_state == RecordingState.Unknown:
+                draw_question_mark()
 
         painter.end()
         return QIcon(icon_pixmap)
@@ -133,28 +166,32 @@ class TrayIcon(QSystemTrayIcon):
         self.setIcon(self._create_icon())
 
     def _update_state(self):
-        if self._connection_state == ConnectionState.Connected and self._recording_state is not None:
+        def stop_animations():
+            self.animation_timer.stop()
+            self.animation_frame = 0
+
+        if self._connection_state == ConnectionState.Connected and self._recording_state is not RecordingState.Unknown:
             # Handle animations
             if self._recording_state in [RecordingState.Starting, RecordingState.Stopping]:
                 self.animation_timer.start(int(1000 / 30))  # 30 FPS
             else:
-                self.animation_timer.stop()
-                self.animation_frame = 0
+                stop_animations()
         else:
-            self.animation_timer.stop()
-            self.animation_frame = 0
+            stop_animations()
 
         self._update_icon()
 
         # Update tooltip
-        tooltip = f"OBS Scene Helper\n" \
-                  f"Status: {self._connection_state.name}"
-        if self._recording_state is not None:
-            tooltip += f", recording is {self._recording_state.value}"
+        tooltip = (
+            f"OBS Scene Helper\n"
+            f"Status: {self._connection_state.name}, recording is {self._recording_state.value}"
+        )
+
         if self.last_preset is not None:
             tooltip += f"\nPreset: {self.last_preset.name}"
         if self.extra_message is not None and len(self.extra_message) > 0:
             tooltip += f"\nMessage: {self.extra_message}"
         if self.last_error is not None and len(self.last_error) > 0:
             tooltip += f"\n\nError: {self.last_error}"
+
         self.setToolTip(tooltip)

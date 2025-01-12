@@ -4,7 +4,9 @@ from typing import List
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from obs_scene_helper.controller.obs.connection import Connection, RecordingState, ConnectionState
+from obs_scene_helper.controller.obs.connection import Connection, ConnectionState
+from obs_scene_helper.controller.obs.recording import RecordingState
+
 from obs_scene_helper.controller.system.display_list import DisplayList
 from obs_scene_helper.controller.settings.settings import Settings
 from obs_scene_helper.model.settings.preset import Preset
@@ -34,7 +36,7 @@ class SwitchProfileAndSceneCollection(QObject):
         self.target_preset = None
 
         self.obs_connection = obs_connection
-        self.obs_connection.recording_state_changed.connect(self._handle_record_state_change)
+        self.obs_connection.recording.state_changed.connect(self._handle_record_state_change)
         self.obs_connection.connection_state_changed.connect(self._handle_connection_state_change)
         self.obs_connection.on_error.connect(self._handle_obs_error)
         self.obs_connection.active_scene_collection_changed.connect(self._handle_scene_collection_change)
@@ -65,6 +67,8 @@ class SwitchProfileAndSceneCollection(QObject):
             return self._handle_recording_stopped()
         elif new_state == RecordingState.Active:
             return self._handle_recording_started()
+        elif new_state == RecordingState.Unknown:
+            return self._transition_to_idle()
 
     def _handle_connection_state_change(self, new_state: ConnectionState):
         self.log.debug(f'Connection state change: {new_state}')
@@ -128,13 +132,13 @@ class SwitchProfileAndSceneCollection(QObject):
         self.state = SwitchProfileAndSceneCollection.State.StartingRecording
         self.log.debug(f"Transition to {self.state}")
 
-        if self.obs_connection.recording_state == RecordingState.Active:
+        if self.obs_connection.recording.state == RecordingState.Active:
             self.log.info(f"Recording state already active")
             self._handle_recording_started()
             return
 
         self.log.info(f"Starting recording")
-        self.obs_connection.start_recording()
+        self.obs_connection.recording.start()
 
     def _handle_profile_change(self, _: str):
         self.log.debug(f'Profile change')
@@ -190,12 +194,12 @@ class SwitchProfileAndSceneCollection(QObject):
             self.state = SwitchProfileAndSceneCollection.State.StoppingRecording
             self.log.debug(f"Transition to {self.state}")
 
-            if self.obs_connection.recording_state == RecordingState.Stopped:
+            if self.obs_connection.recording.state == RecordingState.Stopped:
                 self.log.info(f"Recording already stopped")
                 self._handle_recording_stopped()
             else:
                 self.log.info(f"Stopping recording")
-                self.obs_connection.stop_recording()
+                self.obs_connection.recording.stop()
 
             return
 

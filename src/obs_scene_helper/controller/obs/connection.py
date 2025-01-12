@@ -10,7 +10,7 @@ import obsws_python as obs
 from obsws_python.error import OBSSDKRequestError
 
 from obs_scene_helper.controller.obs.event_client import EventClient
-from obs_scene_helper.controller.obs.output_state import OutputState
+
 from obs_scene_helper.controller.settings.settings import Settings
 
 from obs_scene_helper.controller.system.log import Log
@@ -24,19 +24,10 @@ class ConnectionState(Enum):
     ShuttingDown = 'Shutting down'
 
 
-class RecordingState(Enum):
-    Starting = 'starting'
-    Active = 'active'
-    Paused = 'paused'
-    Stopping = 'stopping'
-    Stopped = 'stopped'
-
-
 class Connection(QObject):
     LOG_NAME = 'obsc'
 
     connection_state_changed = Signal(ConnectionState, str)  # Note: str is optional
-    recording_state_changed = Signal(RecordingState)
 
     profile_list_changed = Signal()
     active_profile_changed = Signal(str)
@@ -47,6 +38,8 @@ class Connection(QObject):
     on_error = Signal(str)
 
     def __init__(self, settings: Settings, *args, **kwargs):
+        from obs_scene_helper.controller.obs.recording import Recording
+
         super().__init__(*args, **kwargs)
 
         self._settings = settings
@@ -67,11 +60,20 @@ class Connection(QObject):
         self.scene_collections = []  # type: List[str]
         self.active_scene_collection = None  # type: Optional[str]
 
-        self.recording_state = None  # type: Optional[RecordingState]
+        self.recording = Recording(self)
+        self.recording.on_error.connect(self._on_recording_error)
+
         self.connection_state = ConnectionState.Disconnected  # type: ConnectionState
 
         self.log = Log.child(self.LOG_NAME)
         self.log.debug('Initialized')
+
+    @property
+    def ws(self) -> obs.ReqClient | None:
+        return self._ws
+
+    def _on_recording_error(self, error: str):
+        self.on_error.emit(error)
 
     def launch(self):
         self._thread.start()
@@ -151,12 +153,9 @@ class Connection(QObject):
     ################################################################################
     # Connection State
     ################################################################################
+
     def _update_connection_state(self, new_state: ConnectionState, message: Optional[str]):
         self.log.debug(f'Updating connection state {new_state} ({message})')
-        if new_state != ConnectionState.Connected:
-            self.log.debug(f'Resetting recording state')
-            self.recording_state = None
-
         self.connection_state = new_state
         self.connection_state_changed.emit(self.connection_state, message)
 
@@ -215,53 +214,6 @@ class Connection(QObject):
 
         self._update_connection_state(ConnectionState.Disconnected, "shut down")
 
-    ################################################################################
-    # Recording State
-    ################################################################################
-
-    def _update_recording_state(self, new_state: RecordingState):
-        self.log.info(f'Updating recoding state: {new_state}')
-        self.recording_state = new_state
-        self.recording_state_changed.emit(self.recording_state)
-
-    def _check_recording_status(self):
-        self.log.debug(f'Checking recoding state')
-        status = self._ws.get_record_status()
-
-        # Note: we cannot detect intermediate states with a request
-        if not status.output_active:
-            status = RecordingState.Stopped
-        else:
-            if status.output_paused:
-                status = RecordingState.Paused
-            else:
-                status = RecordingState.Active
-
-        self._update_recording_state(status)
-
-    def on_record_state_changed(self, event):
-        state = OutputState(event.output_state)
-
-        if state == OutputState.Starting:
-            status = RecordingState.Starting
-        elif state == OutputState.Started:
-            status = RecordingState.Active
-        elif state == OutputState.Stopping:
-            status = RecordingState.Stopping
-        elif state == OutputState.Stopped:
-            status = RecordingState.Stopped
-        elif state == OutputState.Paused:
-            status = RecordingState.Paused
-        elif state == OutputState.Resumed:
-            status = RecordingState.Active
-        else:
-            status = None
-
-        self.log.info(f'Handling record state change: {state} ({status})')
-
-        if status is not None:
-            self._update_recording_state(status)
-
     def restart(self):
         self._update_connection_state(ConnectionState.Connecting, None)
 
@@ -273,20 +225,20 @@ class Connection(QObject):
             self._events = EventClient(on_disconnected=self._on_event_client_disconnected, **args)
             self._setup_logging()
 
-            # Register event callbacks
-            self._events.callback.register((
-                self.on_record_state_changed,
-
+            callbacks = [
                 self.on_current_profile_changed,
                 self.on_current_scene_collection_changed,
 
                 self.on_scene_collection_list_changed,
                 self.on_profile_list_changed,
-            ))
+            ]
+            callbacks.extend(self.recording.obs_callbacks())
+
+            # Register event callbacks
+            self._events.callback.register(callbacks)
 
             self._update_connection_state(ConnectionState.Connected, None)
 
-            self._check_recording_status()
             self._fetch_profile_list()
             self._fetch_scene_collection_list()
         except Exception as e:
@@ -314,70 +266,6 @@ class Connection(QObject):
             except OBSSDKRequestError as e:
                 self.log.warning(f"Error restarting {capture['inputName']}: {str(e)}")
                 self.on_error.emit(str(e))
-
-    def pause_recording(self):
-        self.log.debug(f"Pause recording")
-
-        try:
-            status = self._ws.get_record_status()
-            if not status.output_active:
-                self.log.info(f"Skipping pause: output not active")
-                return
-
-            if status.output_paused:
-                self.log.info(f"Skipping pause: already on pause")
-                return
-
-            self._ws.pause_record()
-        except OBSSDKRequestError as e:
-            self.log.warning(f"Pause error: {str(e)}")
-            self.on_error.emit(str(e))
-
-    def resume_recording(self):
-        self.log.debug(f"Resume recording")
-
-        try:
-            status = self._ws.get_record_status()
-            if not status.output_active:
-                self.log.info(f"Skipping resume: output not active")
-                return
-
-            if not status.output_paused:
-                self.log.info(f"Skipping resume: already resumed")
-                return
-
-            self._ws.resume_record()
-        except OBSSDKRequestError as e:
-            self.log.warning(f"Resume error: {str(e)}")
-            self.on_error.emit(str(e))
-
-    def start_recording(self):
-        self.log.debug(f"Starting recording")
-
-        try:
-            status = self._ws.get_record_status()
-            if status.output_active:
-                self.log.info(f"Skipping start: output already active")
-                return
-
-            self._ws.start_record()
-        except OBSSDKRequestError as e:
-            self.log.warning(f"Start error: {str(e)}")
-            self.on_error.emit(str(e))
-
-    def stop_recording(self):
-        self.log.debug(f"Stopping recording")
-
-        try:
-            status = self._ws.get_record_status()
-            if not status.output_active:
-                self.log.info(f"Skipping stop: output not active")
-                return
-
-            self._ws.stop_record()
-        except OBSSDKRequestError as e:
-            self.log.warning(f"Stop error: {str(e)}")
-            self.on_error.emit(str(e))
 
     def set_current_profile(self, profile: str):
         self.log.debug(f"Setting current profile: {profile}")
