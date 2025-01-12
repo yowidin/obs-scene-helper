@@ -31,6 +31,17 @@ class LogFilterProxyModel(QSortFilterProxyModel):
         self.invalidateFilter()
 
 
+class AutoScrollTableView(QTableView):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.auto_scroll = True
+
+    def rowsInserted(self, parent, start: int, end: int):
+        super().rowsInserted(parent, start, end)
+        if self.auto_scroll:
+            self.scrollToBottom()
+
+
 class Logs(AppWindow):
     def __init__(self):
         super().__init__("Logs")
@@ -51,7 +62,7 @@ class Logs(AppWindow):
         filter_layout.addWidget(clear_logs_button)
 
         # Logs Table
-        self.table = QTableView()
+        self.table = AutoScrollTableView()
         self.model = Log.INSTANCE.model
         self.proxy_model = LogFilterProxyModel()
         self.proxy_model.setSourceModel(self.model)
