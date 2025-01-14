@@ -1,6 +1,5 @@
 from PySide6.QtCore import QObject, Signal
 
-from obsws_python.error import OBSSDKRequestError
 import obsws_python as obs
 
 from obs_scene_helper.controller.obs.connection import Connection, ConnectionState
@@ -52,12 +51,16 @@ class SceneCollections(QObject):
 
     # noinspection PyUnresolvedReferences
     def _fetch(self):
-        self.log.debug(f'Fetching scene collection list')
-        res = self._ws.get_scene_collection_list()
+        try:
+            self.log.debug(f'Fetching scene collection list')
+            res = self._ws.get_scene_collection_list()
 
-        self.log.debug(f'Scene collection list fetched')
-        self._update_list(res.scene_collections)
-        self._update_active(res.current_scene_collection_name)
+            self.log.debug(f'Scene collection list fetched')
+            self._update_list(res.scene_collections)
+            self._update_active(res.current_scene_collection_name)
+        except Exception as e:
+            self.log.warning(f"Error fetching scene collection list: {str(e)}")
+            self.on_error.emit(str(e))
 
     def on_current_scene_collection_changed(self, _):
         # Somehow, we are not getting notified about scene collection list changes
@@ -76,20 +79,22 @@ class SceneCollections(QObject):
 
         self._fetch()
 
-    def set_active(self, scene_collection: str):
+    def set_active(self, scene_collection: str) -> bool:
         self.log.debug(f"Setting current scene collection: {scene_collection}")
 
         try:
             if scene_collection not in self.list:
                 self.log.error(f'Scene collection "{scene_collection}" does not exist')
                 self.on_error.emit(f'Scene collection "{scene_collection}" does not exist')
-                return
+                return False
 
             if scene_collection == self.active:
                 self.log.info(f'Skipping scene collection set: already active')
-                return
+            else:
+                self._ws.set_current_scene_collection(scene_collection)
 
-            self._ws.set_current_scene_collection(scene_collection)
-        except OBSSDKRequestError as e:
+            return True
+        except Exception as e:
             self.log.warning(f"Scene collection set error: {str(e)}")
             self.on_error.emit(str(e))
+            return False

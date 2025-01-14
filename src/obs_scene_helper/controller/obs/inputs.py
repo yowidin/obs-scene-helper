@@ -1,6 +1,5 @@
 from PySide6.QtCore import QObject, Signal
 
-from obsws_python.error import OBSSDKRequestError
 import obsws_python as obs
 
 from obs_scene_helper.controller.obs.connection import Connection, ConnectionState
@@ -72,24 +71,32 @@ class Inputs(QObject):
             self.log.info(f'Inputs list unchanged: {self.list}')
 
     def _fetch(self):
-        self.log.debug(f'Fetching inputs list')
-        res = self._ws.get_input_list()
+        try:
+            self.log.debug(f'Fetching inputs list')
+            res = self._ws.get_input_list()
 
-        self.log.debug(f'Inputs list fetched')
-        inputs = res.inputs
+            self.log.debug(f'Inputs list fetched')
+            inputs = res.inputs
 
-        all_inputs = []
-        for entry in inputs:
-            uuid = entry['inputUuid']
-            kind = entry['unversionedInputKind']
-            name = entry['inputName']
+            all_inputs = []
+            for entry in inputs:
+                uuid = entry['inputUuid']
+                kind = entry['unversionedInputKind']
+                name = entry['inputName']
 
-            settings_res = self._ws.get_input_settings(name)
-            settings = settings_res.input_settings
+                # TODO: The OBS documentation states that this won't return all the settings.
+                #  To get the complete settings list, we also have to get the default ones and merge the dictionaries.
+                #  We are skipping this for now, because it is not that relevant.
+                settings_res = self._ws.get_input_settings(name)
+                settings = settings_res.input_settings
 
-            all_inputs.append(Input(uuid, name, kind, settings))
+                all_inputs.append(Input(uuid, name, kind, settings))
 
-        self._update_list(all_inputs)
+            self._update_list(all_inputs)
+        except Exception as e:
+            self.log.warning(f'Error fetching inputs: {str(e)}')
+            self.on_error.emit(str(e))
+            return False
 
     def _connection_state_changed(self, state: ConnectionState, _: str | None):
         if state != ConnectionState.Connected:
@@ -166,7 +173,7 @@ class Inputs(QObject):
             self.log.debug(f'Pressing "{button_name}" for {entry.name}')
             self._ws.press_input_properties_button(entry.name, button_name)
             return True
-        except OBSSDKRequestError as e:
+        except Exception as e:
             self.log.warning(f'Error pressing "{button_name}" for {entry.name}: {str(e)}')
             self.on_error.emit(str(e))
             return False
@@ -184,7 +191,7 @@ class Inputs(QObject):
             self.log.debug(f'Updating settings for "{entry.name}": {settings}')
             self._ws.set_input_settings(entry.name, settings, overlay)
             return True
-        except OBSSDKRequestError as e:
+        except Exception as e:
             self.log.warning(f'Error updating settings for "{entry.name}": {str(e)}')
             self.on_error.emit(str(e))
             return False

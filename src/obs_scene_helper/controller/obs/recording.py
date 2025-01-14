@@ -1,6 +1,5 @@
 from PySide6.QtCore import QObject, Signal
 
-from obsws_python.error import OBSSDKRequestError
 import obsws_python as obs
 
 from enum import Enum
@@ -48,22 +47,26 @@ class Recording(QObject):
     def _check_recording_status(self):
         self.log.debug(f'Checking recoding state')
 
-        if self._ws is None:
-            self.log.error(f'Cannot check recoding state: no connection')
-            return
+        try:
+            if self._ws is None:
+                self.log.error(f'Cannot check recoding state: no connection')
+                return
 
-        status = self._ws.get_record_status()
+            status = self._ws.get_record_status()
 
-        # Note: we cannot detect intermediate states with a request
-        if not status.output_active:
-            status = RecordingState.Stopped
-        else:
-            if status.output_paused:
-                status = RecordingState.Paused
+            # Note: we cannot detect intermediate states with a request
+            if not status.output_active:
+                status = RecordingState.Stopped
             else:
-                status = RecordingState.Active
+                if status.output_paused:
+                    status = RecordingState.Paused
+                else:
+                    status = RecordingState.Active
 
-        self._update_recording_state(status)
+            self._update_recording_state(status)
+        except Exception as e:
+            self.log.warning(f"Error checking recording status: {str(e)}")
+            self.on_error.emit(str(e))
 
     def on_record_state_changed(self, event):
         output = OutputState(event.output_state)
@@ -97,58 +100,65 @@ class Recording(QObject):
 
         self._check_recording_status()
 
-    def pause(self):
+    def pause(self) -> bool:
         self.log.debug(f"Pause")
 
         try:
             if self.state != RecordingState.Active:
                 self.log.info(f"Skipping pause: not active ({self.state.value})")
-                return
+            else:
+                self._ws.pause_record()
 
-            self._ws.pause_record()
-        except OBSSDKRequestError as e:
+            return True
+        except Exception as e:
             self.log.warning(f"Pause error: {str(e)}")
             self.on_error.emit(str(e))
+            return False
 
-    def resume(self):
+    def resume(self) -> bool:
         self.log.debug(f"Resume")
 
         try:
             if self.state != RecordingState.Paused:
                 self.log.info(f"Skipping resume: not paused ({self.state.value})")
-                return
+            else:
+                self._ws.resume_record()
 
-            self._ws.resume_record()
-        except OBSSDKRequestError as e:
+            return True
+        except Exception as e:
             self.log.warning(f"Resume error: {str(e)}")
             self.on_error.emit(str(e))
+            return False
 
-    def start(self):
+    def start(self) -> bool:
         self.log.debug(f"Starting")
 
         try:
             if self.state == RecordingState.Active:
                 self.log.info(f"Skipping start: output already active")
-                return
+                return True
             elif self.state == RecordingState.Paused:
                 self.log.info(f"Skipping start: paused, resuming instead")
-                self.resume()
-                return
+                return self.resume()
 
             self._ws.start_record()
-        except OBSSDKRequestError as e:
+            return True
+        except Exception as e:
             self.log.warning(f"Start error: {str(e)}")
             self.on_error.emit(str(e))
+            return False
 
-    def stop(self):
+    def stop(self) -> bool:
         self.log.debug(f"Stopping recording")
 
         try:
             if self.state not in [RecordingState.Paused, RecordingState.Active]:
                 self.log.info(f"Skipping stop: output not active")
-                return
+            else:
+                self._ws.stop_record()
 
-            self._ws.stop_record()
-        except OBSSDKRequestError as e:
+            return True
+        except Exception as e:
             self.log.warning(f"Stop error: {str(e)}")
             self.on_error.emit(str(e))
+            return False

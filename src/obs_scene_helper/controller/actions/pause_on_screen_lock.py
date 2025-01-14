@@ -71,7 +71,8 @@ class PauseOnScreenLock(QObject):
 
         self.log.info('Requesting pause')
         self.state = PauseOnScreenLock.State.WaitingForPauseEvent
-        self.obs_connection.recording.pause()
+        if not self.obs_connection.recording.pause():
+            self.state = PauseOnScreenLock.State.Idle
 
     def _handle_screen_unlocked(self):
         self.log.debug('Handling screen unlock event')
@@ -82,4 +83,5 @@ class PauseOnScreenLock(QObject):
 
         self.log.info('Requesting resumption')
         self.state = PauseOnScreenLock.State.WaitingForResumeEvent
-        self.obs_connection.recording.resume()
+        if not self.obs_connection.recording.resume():
+            self.state = PauseOnScreenLock.State.Idle

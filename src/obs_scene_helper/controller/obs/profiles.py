@@ -1,6 +1,5 @@
 from PySide6.QtCore import QObject, Signal
 
-from obsws_python.error import OBSSDKRequestError
 import obsws_python as obs
 
 from obs_scene_helper.controller.obs.connection import Connection, ConnectionState
@@ -53,12 +52,16 @@ class Profiles(QObject):
 
     # noinspection PyUnresolvedReferences
     def _fetch(self):
-        self.log.debug(f'Fetching profile list')
-        res = self._ws.get_profile_list()
+        try:
+            self.log.debug(f'Fetching profile list')
+            res = self._ws.get_profile_list()
 
-        self.log.debug(f'Profile list fetched')
-        self._update_list(res.profiles)
-        self._update_active(res.current_profile_name)
+            self.log.debug(f'Profile list fetched')
+            self._update_list(res.profiles)
+            self._update_active(res.current_profile_name)
+        except Exception as e:
+            self.log.warning(f"Error fetching profile list: {str(e)}")
+            self.on_error.emit(str(e))
 
     def on_current_profile_changed(self, event):
         self._update_active(event.profile_name)
@@ -76,25 +79,27 @@ class Profiles(QObject):
 
         self._fetch()
 
-    def set_active(self, profile: str):
+    def set_active(self, profile: str) -> bool:
         self.log.debug(f"Setting active profile: {profile}")
 
         try:
             if profile not in self.list:
                 self.log.error(f'Profile "{profile}" does not exist')
                 self.on_error.emit(f'Profile "{profile}" does not exist')
-                return
+                return False
 
             if profile == self.active:
                 self.log.info(f'Skipping profile set: already active')
-                return
+                return True
 
             if self._connection.recording.state != RecordingState.Stopped:
                 self.log.error('Profile cannot be changed while recording is active')
                 self.on_error.emit('Profile cannot be changed while recording is active')
-                return
+                return False
 
             self._ws.set_current_profile(profile)
-        except OBSSDKRequestError as e:
+            return True
+        except Exception as e:
             self.log.warning(f"Profile set error: {str(e)}")
             self.on_error.emit(str(e))
+            return False
