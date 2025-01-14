@@ -50,16 +50,16 @@ class Connection(QObject):
         self.shutting_down = False
 
         self.recording = Recording(self)
-        self.recording.on_error.connect(lambda msg: self.on_error.emit(msg))
+        self.recording.on_error.connect(lambda msg: self._on_connection_error(msg))
 
         self.profiles = Profiles(self)
-        self.profiles.on_error.connect(lambda msg: self.on_error.emit(msg))
+        self.profiles.on_error.connect(lambda msg: self._on_connection_error(msg))
 
         self.scene_collections = SceneCollections(self)
-        self.scene_collections.on_error.connect(lambda msg: self.on_error.emit(msg))
+        self.scene_collections.on_error.connect(lambda msg: self._on_connection_error(msg))
 
         self.inputs = Inputs(self)
-        self.inputs.on_error.connect(lambda msg: self.on_error.emit(msg))
+        self.inputs.on_error.connect(lambda msg: self._on_connection_error(msg))
 
         self.connection_state = ConnectionState.Disconnected  # type: ConnectionState
 
@@ -110,20 +110,37 @@ class Connection(QObject):
     def _on_event_client_disconnected(self):
         self._update_connection_state(ConnectionState.Disconnected, "connection lost")
 
+    def _on_connection_error(self, message: str):
+        """
+        Connection-related error handler: logs the error message and changes the connection state to "Error".
+        The connection doctor class will restart the connection after a short delay.
+        All the classes, tracking the internal OBS state will re-fetch their data upon a connection establishment and
+        thus hopefully fix the underlying issue (if it was an issue on our side).
+        :param message: Error message to be logged.
+        :return: None.
+        """
+        self.log.warning(f'Connection error: {message}')
+        self._update_connection_state(ConnectionState.Error, message)
+        self.on_error.emit(str(message))
+
     def _disconnect(self):
         self.log.info(f'Disconnecting')
 
-        if self._ws is not None:
-            self.log.info(f'Stopping request client')
-            self._ws.base_client.ws.close()
-            self._ws.disconnect()
-            self._ws = None
+        def stop_client(client, name: str):
+            if client is not None:
+                try:
+                    self.log.info(f'Stopping {name} client')
+                    client.base_client.ws.close()
+                    client.disconnect()
+                except Exception as e:
+                    self.log.warning(f'Error stopping {name} client: {str(e)}')
+                    self.on_error.emit(str(e))
 
-        if self._events is not None:
-            self.log.info(f'Stopping event client')
-            self._events.base_client.ws.close()
-            self._events.disconnect()
-            self._events = None
+        stop_client(self._ws, 'request')
+        stop_client(self._events, 'event')
+
+        self._ws = None
+        self._events = None
 
     def stop(self):
         self.log.info(f'Shutting down')
@@ -159,6 +176,4 @@ class Connection(QObject):
 
             self._update_connection_state(ConnectionState.Connected, None)
         except Exception as e:
-            self.log.warning(f'Connection error: {str(e)}')
-            self._update_connection_state(ConnectionState.Error, str(e))
-            self.on_error.emit(str(e))
+            self._on_connection_error(str(e))

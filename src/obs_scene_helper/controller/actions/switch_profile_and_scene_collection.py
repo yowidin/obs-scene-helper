@@ -102,7 +102,8 @@ class SwitchProfileAndSceneCollection(QObject):
         QThread.sleep(5)
 
         self.log.info(f"Switching profile: {self.target_preset.profile}")
-        self.obs_connection.profiles.set_active(self.target_preset.profile)
+        if not self.obs_connection.profiles.set_active(self.target_preset.profile):
+            self._transition_to_idle()
 
     def _handle_recording_started(self):
         self.log.debug(f'Recording started: {self.state}')
@@ -137,7 +138,8 @@ class SwitchProfileAndSceneCollection(QObject):
             return
 
         self.log.info(f"Starting recording")
-        self.obs_connection.recording.start()
+        if not self.obs_connection.recording.start():
+            self._transition_to_idle()
 
     def _handle_profile_change(self, _: str):
         self.log.debug(f'Profile change')
@@ -155,7 +157,8 @@ class SwitchProfileAndSceneCollection(QObject):
             return
 
         self.log.info(f"Switching scene collection: {self.target_preset.scene_collection}")
-        self.obs_connection.scene_collections.set_active(self.target_preset.scene_collection)
+        if not self.obs_connection.scene_collections.set_active(self.target_preset.scene_collection):
+            self._transition_to_idle()
 
     def _handle_display_list_change(self, _: List[str]):
         self.log.debug(f"Handling display list change")
@@ -198,7 +201,8 @@ class SwitchProfileAndSceneCollection(QObject):
                 self._handle_recording_stopped()
             else:
                 self.log.info(f"Stopping recording")
-                self.obs_connection.recording.stop()
+                if not self.obs_connection.recording.stop():
+                    self._transition_to_idle()
 
             return
 
