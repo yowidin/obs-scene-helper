@@ -153,7 +153,7 @@ class Recording(QObject):
 
         try:
             if self.state not in [RecordingState.Paused, RecordingState.Active]:
-                self.log.info(f"Skipping stop: output not active")
+                self.log.info(f"Skipping stop: output not active ({self.state.value})")
             else:
                 self._ws.stop_record()
 

@@ -89,7 +89,7 @@ class Profiles(QObject):
                 return False
 
             if profile == self.active:
-                self.log.info(f'Skipping profile set: already active')
+                self.log.info(f'Skipping profile set: "{profile}" already active')
                 return True
 
             if self._connection.recording.state != RecordingState.Stopped:
