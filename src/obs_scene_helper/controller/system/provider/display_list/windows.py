@@ -107,8 +107,8 @@ class WindowsProvider(QObject):
         return {
             'capture_output': True,
             'check': True,
-            # 'creationflags': subprocess.CREATE_NO_WINDOW,
-            # 'startupinfo': WindowsProvider._get_startup_info(),
+            'creationflags': subprocess.CREATE_NO_WINDOW,
+            'startupinfo': WindowsProvider._get_startup_info(),
         }
 
     @staticmethod
