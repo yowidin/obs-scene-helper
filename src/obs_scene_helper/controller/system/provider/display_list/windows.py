@@ -93,17 +93,36 @@ class WindowsProvider(QObject):
         return getattr(sys, 'frozen', False)
 
     @staticmethod
+    def _get_startup_info():
+        # Avoid the terminal window popping up when getting a list of displays.
+        # The terminal window popping up results in a resolution change and if the reason for getting the display list
+        # was a screen resolution change then we get into an endless loop.
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = subprocess.SW_HIDE
+        return si
+
+    @staticmethod
+    def _extra_run_flags() -> dict:
+        return {
+            'capture_output': True,
+            'check': True,
+            # 'creationflags': subprocess.CREATE_NO_WINDOW,
+            # 'startupinfo': WindowsProvider._get_startup_info(),
+        }
+
+    @staticmethod
     def _get_display_list_standalone() -> str:
         our_dir = os.path.dirname(sys.executable)
         list_getter = os.path.join(our_dir, 'osh-display-list.exe')
-        return subprocess.run([list_getter], capture_output=True, text=True, check=True).stdout
+        return subprocess.run([list_getter], text=True, **WindowsProvider._extra_run_flags()).stdout
 
     @staticmethod
     def _get_display_list_interpreted() -> str:
         code = 'from obs_scene_helper.controller.system.provider.display_list.windows import get_display_list\r\n' \
                'get_display_list()'
 
-        return subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout
+        return subprocess.run([sys.executable, "-c", code], text=True, **WindowsProvider._extra_run_flags()).stdout
 
     def _fetch_display_list(self):
         try:
