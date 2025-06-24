@@ -17,6 +17,7 @@ from obs_scene_helper.controller.system.log import Log as LogController
 
 from obs_scene_helper.view.tray_icon import TrayIcon
 from obs_scene_helper.view.settings.obs import OBSSettingsDialog
+from obs_scene_helper.view.settings.osh import OSHSettingsDialog
 from obs_scene_helper.view.widgets.preset_list import PresetList
 from obs_scene_helper.view.widgets.logs import Logs as LogsWidget
 
@@ -38,6 +39,7 @@ class OBSSceneHelperApp:
         self.tray_icon.signals.quit_requested.connect(self._close_requested)
         self.tray_icon.signals.presets_list_requested.connect(self._presets_list_requested)
         self.tray_icon.signals.obs_settings_requested.connect(self._obs_settings_requested)
+        self.tray_icon.signals.osh_settings_requested.connect(self._osh_settings_requested)
         self.tray_icon.signals.logs_requested.connect(self._logs_requested)
 
         self._setup_platform_specifics()
@@ -50,7 +52,7 @@ class OBSSceneHelperApp:
         if sys.platform == 'darwin':
             from obs_scene_helper.controller.actions.workarounds.macos.fix_inputs_after_recording_resume import \
                 FixInputsAfterRecordingResume
-            self.fix_macos_inputs = FixInputsAfterRecordingResume(self.obs_connection)
+            self.fix_macos_inputs = FixInputsAfterRecordingResume(self.obs_connection, self.settings)
 
         # Launch the connection after all the components are initialized, ensuring that all signals are received
         # by all the components
@@ -107,6 +109,10 @@ class OBSSceneHelperApp:
 
     def _obs_settings_requested(self):
         dialog = OBSSettingsDialog(self.settings)
+        dialog.exec()
+
+    def _osh_settings_requested(self):
+        dialog = OSHSettingsDialog(self.settings)
         dialog.exec()
 
     def _logs_requested(self):

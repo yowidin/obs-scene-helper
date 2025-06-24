@@ -13,6 +13,7 @@ class SystemTraySignals(QObject):
     quit_requested = Signal()
     presets_list_requested = Signal()
     obs_settings_requested = Signal()
+    osh_settings_requested = Signal()
     logs_requested = Signal()
 
 
@@ -36,6 +37,8 @@ class TrayIcon(QSystemTrayIcon):
         self.menu = QMenu()
         self.menu.addAction("Presets", lambda: self.signals.presets_list_requested.emit())
         self.menu.addAction("OBS Settings", lambda: self.signals.obs_settings_requested.emit())
+        self.menu.addSeparator()
+        self.menu.addAction("Settings", lambda: self.signals.osh_settings_requested.emit())
         self.menu.addAction("Logs", lambda: self.signals.logs_requested.emit())
         self.menu.addSeparator()
         self.menu.addAction("Quit", lambda: self.signals.quit_requested.emit())

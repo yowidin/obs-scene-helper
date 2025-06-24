@@ -5,9 +5,10 @@ from PySide6.QtCore import QObject, Signal, QSettings
 
 from obs_scene_helper.controller.system.display_list import DisplayList
 
-from obs_scene_helper.model.settings.obs import OBS as OBS
+from obs_scene_helper.model.settings.obs import OBS
 from obs_scene_helper.model.settings.preset import PresetList
 from obs_scene_helper.model.settings.all_displays import AllDisplays
+from obs_scene_helper.model.settings.osh import OSH
 
 
 class Settings(QObject):
@@ -17,10 +18,12 @@ class Settings(QObject):
     OBS_KEY = 'obs'
     PRESETS_KEY = 'presets'
     ALL_DISPLAYS_KEY = 'all_displays'
+    OSH_KEY = 'osh'
 
     obs_changed = Signal()
     preset_list_changed = Signal()
     all_displays_changed = Signal()
+    osh_changed = Signal()
 
     def __init__(self, display_list: DisplayList, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -31,6 +34,7 @@ class Settings(QObject):
         self.obs = None  # type: Optional[OBS]
         self.preset_list = None  # type: Optional[PresetList]
         self.all_displays = None  # type: Optional[AllDisplays]
+        self.osh = None  # type: Optional[OSH]
 
         self.settings = QSettings(Settings.ORG_NAME, Settings.APP_NAME)
         self._load_settings()
@@ -51,6 +55,10 @@ class Settings(QObject):
     def _on_all_displays_changed(self):
         self._save_settings()
         self.all_displays_changed.emit()
+
+    def _on_osh_changed(self):
+        self._save_settings()
+        self.osh_changed.emit()
 
     def _load_settings(self):
         # noinspection PyTypeChecker
@@ -74,10 +82,18 @@ class Settings(QObject):
         else:
             self.all_displays = AllDisplays.from_dict(json.loads(all_displays_str), self._on_all_displays_changed)
 
+        # noinspection PyTypeChecker
+        osh_str = self.settings.value(Settings.OSH_KEY, None)  # type: Optional[str]
+        if osh_str is None:
+            self.osh = OSH.make_default(self._on_osh_changed)
+        else:
+            self.osh = OSH.from_json_dict(json.loads(osh_str), self._on_osh_changed)
+
     def _save_settings(self, sync=True):
         self.settings.setValue(Settings.OBS_KEY, json.dumps(self.obs.to_dict()))
         self.settings.setValue(Settings.PRESETS_KEY, json.dumps(self.preset_list.to_dict()))
         self.settings.setValue(Settings.ALL_DISPLAYS_KEY, json.dumps(self.all_displays.to_dict()))
+        self.settings.setValue(Settings.OSH_KEY, json.dumps(self.osh.to_json_dict()))
 
         if sync:
             self.settings.sync()
