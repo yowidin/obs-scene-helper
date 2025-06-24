@@ -5,6 +5,7 @@ from obs_scene_helper.controller.obs.recording import RecordingState
 from obs_scene_helper.controller.obs.inputs import Input
 
 from obs_scene_helper.controller.system.log import Log
+from obs_scene_helper.controller.settings.settings import Settings
 
 
 class FixInputsAfterRecordingResume(QObject):
@@ -17,10 +18,7 @@ class FixInputsAfterRecordingResume(QObject):
 
     LOG_NAME = 'fiarr'
 
-    # Delay before starting the fixes (in seconds)
-    FIX_INPUTS_DELAY = 5
-
-    def __init__(self, connection: Connection):
+    def __init__(self, connection: Connection, settings: Settings):
         super().__init__()
 
         self._connection = connection
@@ -28,6 +26,11 @@ class FixInputsAfterRecordingResume(QObject):
         self._connection.inputs.settings_changed.connect(self._handle_input_settings_change)
         self._connection.inputs.list_changed.connect(self._handle_input_list_change)
         self._previous_state = RecordingState.Unknown
+
+        self.settings = settings
+        self.settings.osh_changed.connect(self._handle_settings_change)
+
+        self._fix_inputs_delay = settings.osh.macos.fix_inputs_after_recording_resume_delay
 
         self._unfixed_inputs: list[Input] = []
 
@@ -41,6 +44,9 @@ class FixInputsAfterRecordingResume(QObject):
     @property
     def _fixing(self):
         return len(self._unfixed_inputs) != 0
+
+    def _handle_settings_change(self):
+        self._fix_inputs_delay = self.settings.osh.macos.fix_inputs_after_recording_resume_delay
 
     def _show_cursor_for_entry(self, entry: Input, show: bool):
         if not self._connection.inputs.set_settings(entry, {'show_cursor': show}):
@@ -71,7 +77,7 @@ class FixInputsAfterRecordingResume(QObject):
         self._start_fixing_next_input(True)
 
     def _schedule_fix(self):
-        self._start_fixing_timer.start(self.FIX_INPUTS_DELAY * 1000)
+        self._start_fixing_timer.start(self._fix_inputs_delay * 1000)
 
     def _cancel(self):
         self._log.debug('Canceling MacOS input fixes')
@@ -87,9 +93,9 @@ class FixInputsAfterRecordingResume(QObject):
         self._previous_state = new_state
 
         if last_state == RecordingState.Paused and new_state == RecordingState.Active:
-            return self._schedule_fix()
-        else:
-            return self._cancel()
+            self._schedule_fix()
+        elif new_state != RecordingState.Active:
+            self._cancel()
 
     def _handle_input_settings_change(self, entry: Input, _):
         if not self._fixing:
