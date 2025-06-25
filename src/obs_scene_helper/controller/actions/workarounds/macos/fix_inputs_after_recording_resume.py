@@ -80,12 +80,12 @@ class FixInputsAfterRecordingResume(QObject):
         self._start_fixing_timer.start(self._fix_inputs_delay * 1000)
 
     def _cancel(self):
-        self._log.debug('Canceling MacOS input fixes')
-        self._start_fixing_timer.stop()
-
         if not self._fixing:
             return
 
+        self._log.debug('Canceling MacOS input fixes')
+
+        self._start_fixing_timer.stop()
         self._unfixed_inputs = []
 
     def _handle_record_state_change(self, new_state: RecordingState):
