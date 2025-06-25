@@ -18,10 +18,15 @@ class LogFilterProxyModel(QSortFilterProxyModel):
         # noinspection PyTypeChecker
         source_model = self.sourceModel()  # type: LogTable
 
+        def check_column_contents(column) -> bool:
+            column_index = source_model.index(source_row, source_model.index_from_column(column))
+            column_value = source_model.data(column_index)
+            return self.search_text.lower() in column_value.lower()
+
         if len(self.search_text) != 0:
-            message_index = source_model.index(source_row, source_model.index_from_column(Column.Message))
-            message = source_model.data(message_index)
-            if self.search_text.lower() not in message.lower():
+            found_in_message = check_column_contents(Column.Message)
+            found_in_logger = check_column_contents(Column.Logger)
+            if not found_in_message and not found_in_logger:
                 return False
 
         return True
