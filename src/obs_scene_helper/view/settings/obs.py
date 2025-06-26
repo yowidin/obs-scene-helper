@@ -62,8 +62,12 @@ class OBSSettingsDialog(QDialog):
         action_layout.addWidget(self.test_conn_btn)
 
         # Create button box
-        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        button_box = QDialogButtonBox()
+
+        button_box.addButton(QDialogButtonBox.StandardButton.Ok)
         button_box.accepted.connect(self.accept)
+
+        button_box.addButton(QDialogButtonBox.StandardButton.Cancel)
         button_box.rejected.connect(self.reject)
 
         main_layout.addLayout(form_layout)
