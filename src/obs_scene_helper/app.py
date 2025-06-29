@@ -12,6 +12,7 @@ from obs_scene_helper.controller.system.display_list import DisplayList
 
 from obs_scene_helper.controller.actions.pause_on_screen_lock import PauseOnScreenLock
 from obs_scene_helper.controller.actions.switch_profile_and_scene_collection import SwitchProfileAndSceneCollection
+from obs_scene_helper.controller.actions.run_script_on_output_file_change import RunScriptOnOutputFileChange
 
 from obs_scene_helper.controller.system.log import Log as LogController
 
@@ -48,6 +49,8 @@ class OBSSceneHelperApp:
         self.display_switch_action = SwitchProfileAndSceneCollection(self.obs_connection, self.display_list,
                                                                      self.settings)
         self.display_switch_action.preset_activated.connect(lambda x: self.tray_icon.preset_activated(x))
+
+        self.run_script_action = RunScriptOnOutputFileChange(self.obs_connection, self.settings)
 
         if sys.platform == 'darwin':
             from obs_scene_helper.controller.actions.workarounds.macos.fix_inputs_after_recording_resume import \

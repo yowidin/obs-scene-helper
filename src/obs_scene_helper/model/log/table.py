@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex
+from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, Signal
 from PySide6.QtGui import QColor
 
 from typing import Optional
@@ -31,10 +31,13 @@ class Table(QAbstractTableModel):
         logging.CRITICAL: QColor("#FF3030"),
     }
 
+    new_log_record = Signal(logging.LogRecord)
+
     def __init__(self, max_entries: Optional[int] = None):
         super().__init__()
         max_entries = max_entries if max_entries is not None else Table.DEFAULT_MAX_ENTRIES
         self._logs = deque(maxlen=max_entries)
+        self.new_log_record.connect(self._handle_new_log_entry)
 
     def column_from_index(self, index: int) -> Column:
         return self.HEADERS[index]
@@ -111,15 +114,21 @@ class Table(QAbstractTableModel):
             return self.HEADERS[section].name
         return None
 
-    def add_record(self, record: logging.LogRecord):
+    def _handle_new_log_entry(self, record: logging.LogRecord):
         if len(self._logs) == self._logs.maxlen:
-            self.beginRemoveRows(self.index(0, 0), 0, 0)
+            self.beginRemoveRows(QModelIndex(), 0, 0)
             self._logs.popleft()
             self.endRemoveRows()
 
-        self.beginInsertRows(self.index(self.rowCount(), 0), self.rowCount(), self.rowCount())
+        row = self.rowCount()
+        self.beginInsertRows(QModelIndex(), row, row)
         self._logs.append(record)
         self.endInsertRows()
+
+    def add_record(self, record: logging.LogRecord):
+        # Logs can be emitted anywhere, but we should only touch the UI-related components from the UI thread.
+        # The simplest way to enforce it is to use a signal for emitting new log entries.
+        self.new_log_record.emit(record)
 
     def clear_logs(self):
         self.beginResetModel()

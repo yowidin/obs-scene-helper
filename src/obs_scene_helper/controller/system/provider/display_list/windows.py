@@ -12,6 +12,7 @@ from win32gui import CreateWindowEx, WNDCLASS, RegisterClass, DefWindowProc, Des
 from win32api import GetModuleHandle
 
 from obs_scene_helper.controller.system.log import Log
+from obs_scene_helper.controller.system.provider.script_launcher.windows import ScriptLauncher
 
 
 # On Windows 10 the Qt does not correctly react to display configuration changes, for example: switching from
@@ -86,29 +87,18 @@ class WindowsProvider(QObject):
     def displays(self):
         return self._displays
 
-    # When bundled as a standalone binary we cannot just delegate a function call to a new python interpreter instance,
+    # When bundled as a standalone binary, we cannot just delegate a function call to a new python interpreter instance,
     # we have to run another standalone binary to get the fresh display list :facepalm:
     @staticmethod
     def _is_running_from_exe():
         return getattr(sys, 'frozen', False)
 
     @staticmethod
-    def _get_startup_info():
-        # Avoid the terminal window popping up when getting a list of displays.
-        # The terminal window popping up results in a resolution change and if the reason for getting the display list
-        # was a screen resolution change then we get into an endless loop.
-        si = subprocess.STARTUPINFO()
-        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        si.wShowWindow = subprocess.SW_HIDE
-        return si
-
-    @staticmethod
     def _extra_run_flags() -> dict:
         return {
             'capture_output': True,
             'check': True,
-            'creationflags': subprocess.CREATE_NO_WINDOW,
-            'startupinfo': WindowsProvider._get_startup_info(),
+            **ScriptLauncher.extra_run_flags(),
         }
 
     @staticmethod
