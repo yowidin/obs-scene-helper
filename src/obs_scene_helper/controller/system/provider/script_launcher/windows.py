@@ -1,5 +1,6 @@
 from typing import List
 import subprocess
+import os
 
 from PySide6.QtCore import QObject, Signal
 
@@ -32,11 +33,15 @@ class ScriptLauncher(QObject):
 
     def launch(self):
         try:
+            app = self.command[0]
+            working_dir = os.path.dirname(app)
+
             result = subprocess.run(
                 self.command,
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                cwd=working_dir,
                 **ScriptLauncher.extra_run_flags()
             )
 
