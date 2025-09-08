@@ -31,8 +31,14 @@ class ScreenLock(QObject):
             self._provider.screen_locked.connect(self._handle_screen_locked)
             self._provider.screen_unlocked.connect(self._handle_screen_unlocked)
             self.log.debug('Configured macOS provider')
+        elif platform == 'win32':
+            from obs_scene_helper.controller.system.provider.screen_lock.windows import WindowsScreenLockProvider
+            self._provider = WindowsScreenLockProvider(*args, **kwargs)
+            self._provider.screen_locked.connect(self._handle_screen_locked)
+            self._provider.screen_unlocked.connect(self._handle_screen_unlocked)
+            self.log.debug('Configured windows provider')
         else:
-            # TODO: Windows and Linux providers
+            # TODO: Linux provider
             self._provider = None
 
     def _handle_screen_locked(self):

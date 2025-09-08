@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "obs-scene-helper"
-version = "0.2.1"
+version = "0.4.2"
 description = "OBS automatic scene and profile selection helper"
 readme = "README.md"
 authors = [
