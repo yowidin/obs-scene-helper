@@ -5,10 +5,10 @@ import os
 import subprocess
 import json
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, QCoreApplication
 
 import win32con
-from win32gui import CreateWindowEx, WNDCLASS, RegisterClass, DefWindowProc, DestroyWindow
+from win32gui import CreateWindowEx, WNDCLASS, RegisterClass, DefWindowProc, DestroyWindow, UnregisterClass
 from win32api import GetModuleHandle
 
 from obs_scene_helper.controller.system.log import Log
@@ -25,12 +25,16 @@ class ScreenChangeObserver:
 
     def __init__(self, callback: Callable[[int, int, int], None]):
         self.callback = callback
-        self.hwnd = self._create_hidden_window()
+        self.hwnd, self.win_class = self._create_hidden_window()
 
     def destroy(self):
         if self.hwnd is not None:
             DestroyWindow(self.hwnd)
             self.hwnd = None
+
+        if self.win_class is not None:
+            UnregisterClass(self.win_class, GetModuleHandle(None))
+            self.win_class = None
 
     def _create_hidden_window(self):
         class_name = "OSHHiddenDisplayChangeObserver"
@@ -40,13 +44,13 @@ class ScreenChangeObserver:
         wndclass.lpfnWndProc = self._window_proc
         wndclass.lpszClassName = class_name
         wndclass.hInstance = hinstance
-        RegisterClass(wndclass)
+        win_class = RegisterClass(wndclass)
 
         hwnd = CreateWindowEx(0, class_name, None, win32con.WS_OVERLAPPED, win32con.CW_USEDEFAULT,
                               win32con.CW_USEDEFAULT, win32con.CW_USEDEFAULT, win32con.CW_USEDEFAULT, None, None,
                               hinstance, None)
 
-        return hwnd
+        return hwnd, win_class
 
     def _window_proc(self, hwnd, msg, wparam, lparam):
         """
@@ -78,6 +82,11 @@ class WindowsProvider(QObject):
         self._fetch_display_list()
 
         self.log.debug('Initialized')
+
+        QCoreApplication.instance().aboutToQuit.connect(self._about_to_quit)
+
+    def _about_to_quit(self):
+        self._screen_change_observer.destroy()
 
     def _on_screen_configuration_changed(self, *_):
         self.log.debug(f'Screen configuration changed')
