@@ -100,7 +100,8 @@ class WindowsProvider(QObject):
     # we have to run another standalone binary to get the fresh display list :facepalm:
     @staticmethod
     def _is_running_from_exe():
-        return getattr(sys, 'frozen', False)
+        # PyInstaller sets sys.frozen; Nuitka sets __compiled__ on compiled modules
+        return getattr(sys, 'frozen', False) or "__compiled__" in globals()
 
     @staticmethod
     def _extra_run_flags() -> dict:
@@ -112,7 +113,8 @@ class WindowsProvider(QObject):
 
     @staticmethod
     def _get_display_list_standalone() -> str:
-        our_dir = os.path.dirname(sys.executable)
+        # sys.argv[0] points to the original exe in both PyInstaller and Nuitka onefile
+        our_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
         list_getter = os.path.join(our_dir, 'osh-display-list.exe')
         return subprocess.run([list_getter], text=True, **WindowsProvider._extra_run_flags()).stdout
 

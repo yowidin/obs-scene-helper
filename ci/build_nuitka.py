@@ -21,7 +21,7 @@ DIST_DIR = os.path.join(PROJECT_DIR, "dist")
 
 
 def run_nuitka(args):
-    cmd = [sys.executable, "-m", "nuitka"] + args
+    cmd = [sys.executable, "-m", "nuitka", "--assume-yes-for-downloads"] + args
     subprocess.run(cmd, check=True, cwd=PROJECT_DIR)
 
 
