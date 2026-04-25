@@ -31,7 +31,7 @@ jobs:
                 os: windows
                 cpu: x64
 
-              - image: macos-13
+              - image: macos-15-intel
                 os: macos
                 cpu: x64
 
@@ -60,7 +60,7 @@ jobs:
 
     - name: Build standalone apps
       run: |
-        poetry run pyinstaller osh.spec
+        poetry run python ci/build_nuitka.py
 
     - name: Collect artifcats
       run: |
