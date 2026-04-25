@@ -60,7 +60,7 @@ jobs:
 
     - name: Build standalone apps
       run: |
-        poetry run pyinstaller osh.spec
+        poetry run python ci/build_nuitka.py
 
     - name: Collect artifcats
       run: |
