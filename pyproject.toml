@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "obs-scene-helper"
-version = "0.4.2"
+version = "0.4.3"
 description = "OBS automatic scene and profile selection helper"
 readme = "README.md"
 authors = [
@@ -55,6 +55,7 @@ pytest-cov = "^6.0.0"
 coverage = "^7.6.7"
 pytest-mock = "^3.14.0"
 pyinstaller = "^6.11.1"
+nuitka = "^4.0.8"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

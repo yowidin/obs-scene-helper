@@ -6,7 +6,13 @@ is unlocked.
 
 # Building
 
-Build the standalone app with
+## Using Nuitka
+
+```shell
+poetry run python ci/build_nuitka.py
+```
+
+## Using PyInstaller
 
 ```shell
 pyinstaller osh.spec
